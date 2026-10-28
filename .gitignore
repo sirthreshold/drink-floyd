@@ -1,0 +1,59 @@
+# Visual Studio / MSBuild
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+x64/
+x86/
+ARM64/
+Debug/
+Release/
+ipch/
+*.VC.db
+*.VC.opendb
+
+# CMake Build Directories & Files
+build/
+build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeUserPresets.json
+CTestTestfile.cmake
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+
+# Compiled Binaries & Intermediates
+*.obj
+*.o
+*.lib
+*.a
+*.exp
+*.ilk
+*.pdb
+*.idb
+*.exe
+*.dll
+*.so
+*.dylib
+
+# JUCE & External Dependencies
+JUCE/
+_deps/
+.juce/
+
+# IDE / Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS Generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
