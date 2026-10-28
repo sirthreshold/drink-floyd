@@ -33,7 +33,7 @@ void VisualCanvas::paint(juce::Graphics& g)
     g.fillRect(bounds);
 
     // Subtle background grid
-    g.setColour(juce::Colour(0x0a, 0xff, 0xff, 0xff));
+    g.setColour(juce::Colour(0x0affffff));
     constexpr int gridSize = 40;
     for (int x = 0; x < bounds.getWidth(); x += gridSize)
         g.drawVerticalLine(x, 0.0f, h);
@@ -56,7 +56,7 @@ void VisualCanvas::paint(juce::Graphics& g)
     // Center Crosshairs
     const float cx = viewArea.getCentreX();
     const float cy = viewArea.getCentreY();
-    g.setColour(juce::Colour(0x30, 0x00, 0xb4, 0xd8));
+    g.setColour(juce::Colour(0x3000b4d8));
     g.drawLine(cx - 20.0f, cy, cx + 20.0f, cy, 1.0f);
     g.drawLine(cx, cy - 20.0f, cx, cy + 20.0f, 1.0f);
 
@@ -79,7 +79,7 @@ void VisualCanvas::paint(juce::Graphics& g)
 
     // Resolution info badge inside canvas preview
     juce::Rectangle<float> resBadge(viewArea.getX() + 10.0f, viewArea.getY() + 10.0f, 100.0f, 20.0f);
-    g.setColour(juce::Colour(0x60, 0x1a, 0x1e, 0x27));
+    g.setColour(juce::Colour(0x601a1e27));
     g.fillRoundedRectangle(resBadge, 4.0f);
     g.setColour(juce::Colour(0xff00b4d8));
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
