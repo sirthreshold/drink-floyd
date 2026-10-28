@@ -7,6 +7,7 @@ namespace drinkfloyd
 {
 
 enum class ScaleMode;
+enum class PreviewAspect;
 class AudioAnalysisEngine;
 
 class HeaderBar : public juce::Component,
@@ -21,10 +22,12 @@ public:
 
     void recordFrame();
     void updateScaleMode(ScaleMode mode);
+    void updateAspectButtons(int activeIndex);
 
     std::function<void()> onOpenImage;
     std::function<void()> onPasteImage;
     std::function<void()> onToggleScaleMode;
+    std::function<void(int)> onAspectChanged;
 
 private:
     void timerCallback() override;
@@ -35,14 +38,18 @@ private:
     juce::TextButton openButton;
     juce::TextButton pasteButton;
     juce::TextButton scaleModeButton;
+
+    // Output Preview Aspect Selectors
+    juce::TextButton resSquareButton;    // 1080x1080 (1:1)
+    juce::TextButton resPortraitButton;  // 1080x1920 (9:16)
+    juce::TextButton resLandscapeButton; // 1920x1080 (16:9)
+
     juce::Label fpsLabel;
-    juce::Label resolutionInfo;
 
     AudioAnalysisEngine& analysis;
 
     double lastFrameTime = 0.0;
     int frameCount = 0;
-    double fpsAccumulator = 0.0;
     double currentFps = 60.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HeaderBar)

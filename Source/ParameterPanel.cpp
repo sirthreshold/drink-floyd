@@ -1,4 +1,5 @@
 #include "ParameterPanel.h"
+#include "VisualCanvas.h"
 
 namespace drinkfloyd
 {
@@ -6,8 +7,9 @@ namespace drinkfloyd
 // ==============================================================================
 // ParameterPanelContent
 // ==============================================================================
-ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine)
+ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine, VisualCanvas& visualCanvas)
     : analysis(analysisEngine),
+      canvas(visualCanvas),
       monitorView(analysisEngine)
 {
     // Audio Monitor View at the top
@@ -21,6 +23,17 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
         addAndMakeVisible(lbl);
     };
 
+    // 0. SCENE & LOOK
+    setupHeader(sceneSection, "SCENE & GENERATIVE LOOK");
+    setupCombo(sceneGroup, "Active Scene", { "Smear (Pixel Melt)", "Ripple (Beat Wave)", "Flow (Liquid Swirl)", "Tiles (Kaleido Grid)" }, 1);
+
+    randomizeButton.setButtonText("RANDOMIZE LOOK");
+    randomizeButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff7928ca));
+    randomizeButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff9d4edd));
+    randomizeButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    randomizeButton.onClick = [this]() { randomizeLook(); };
+    addAndMakeVisible(randomizeButton);
+
     setupHeader(dynamicsSection,    "AUDIO DYNAMICS");
     setupHeader(persistenceSection, "TEMPORAL / PERSISTENCE");
     setupHeader(colorSection,       "COLOR & LIGHT");
@@ -31,45 +44,53 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     setupSlider(chaosGroup,     "Chaos",      0.0, 1.0, 0.20);
     setupSlider(inputGainGroup, "Input Gain", 0.0, 3.0, 1.00);
 
-    // Wire input gain & react to the audio analysis engine
-    {
-        auto baseReactChange = reactGroup.slider.onValueChange;
-        reactGroup.slider.onValueChange = [this, baseReactChange]()
-        {
-            if (baseReactChange)
-                baseReactChange();
-            analysis.setReact(static_cast<float>(reactGroup.slider.getValue()));
-        };
-        analysis.setReact(static_cast<float>(reactGroup.slider.getValue()));
-
-        auto baseGainChange = inputGainGroup.slider.onValueChange;
-        inputGainGroup.slider.onValueChange = [this, baseGainChange]()
-        {
-            if (baseGainChange)
-                baseGainChange();
-            analysis.setInputGain(static_cast<float>(inputGainGroup.slider.getValue()));
-        };
-        analysis.setInputGain(static_cast<float>(inputGainGroup.slider.getValue()));
-    }
-
     // 2. Persistence
-    setupSlider(trailsGroup, "Trails", 0.0, 1.0, 0.65);
-    setupSlider(heatGroup,   "Heat",   0.0, 1.0, 0.30);
-    setupSlider(decayGroup,  "Decay",  0.0, 1.0, 0.40);
+    setupSlider(trailsGroup, "Trails", 0.0, 0.98, 0.60);
+    setupSlider(heatGroup,   "Heat",   0.0, 1.0,  0.30);
+    setupSlider(decayGroup,  "Decay",  0.0, 1.0,  0.40);
 
     // 3. Color & Light
-    setupSlider(brightnessGroup, "Brightness", 0.0, 2.0, 1.00);
+    setupSlider(brightnessGroup, "Brightness", 0.1, 2.0, 1.00);
     setupSlider(hueDriftGroup,   "Hue Drift",   0.0, 1.0, 0.15);
-    setupCombo(paletteGroup,     "Palette",    { "Prism Core", "Neon Ultraviolet", "Solar Flare", "Monochrome Ice", "Dark Floyd" }, 1);
+    setupCombo(paletteGroup,     "Palette",    { "Prism Core", "Neon Ultraviolet", "Solar Flare", "Monochrome Ice", "Dark Floyd", "Custom" }, 1);
+
+    // Custom Color Swatch button
+    customColorButton.setButtonText("Swatch");
+    customColorButton.setColour(juce::TextButton::buttonColourId, currentCustomColour);
+    customColorButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    customColorButton.onClick = [this]()
+    {
+        // Cycle through vibrant custom designer hues
+        static const juce::Colour paletteChoices[] = {
+            juce::Colour(0xffff007f), // Hot Magenta
+            juce::Colour(0xff00e5ff), // Electric Cyan
+            juce::Colour(0xffff9900), // Solar Amber
+            juce::Colour(0xff9900ff), // Vivid Violet
+            juce::Colour(0xff00ff88), // Neon Mint
+            juce::Colour(0xffff3333)  // Laser Crimson
+        };
+        static int colorIdx = 0;
+        colorIdx = (colorIdx + 1) % 6;
+        currentCustomColour = paletteChoices[colorIdx];
+        customColorButton.setColour(juce::TextButton::buttonColourId, currentCustomColour);
+
+        paletteGroup.comboBox.setSelectedId(6, juce::dontSendNotification); // Select "Custom"
+        pushAllParametersToCanvas();
+    };
+    addAndMakeVisible(customColorButton);
+
     setupSlider(vignetteGroup,   "Vignette",    0.0, 1.0, 0.35);
 
     // 4. Geometry & Optics
-    setupSlider(symmetryGroup,  "Symmetry",   1.0, 12.0, 4.0, 1.0);
+    setupSlider(symmetryGroup,  "Symmetry",   1.0, 12.0, 1.0, 1.0);
     setupSlider(tilesGroup,     "Tiles",      1.0, 16.0, 1.0, 1.0);
     setupSlider(twistGroup,     "Twist",     -1.0,  1.0, 0.0);
     setupSlider(sliceGroup,     "Slice",      0.0,  1.0, 0.0);
     setupSlider(lensGroup,      "Lens",       0.0,  1.0, 0.25);
-    setupCombo(lensStyleGroup,  "Lens Style", { "Fisheye Convex", "Barrel Radial", "Pincushion", "Prismatic Split", "Anamorphic" }, 1);
+    setupCombo(lensStyleGroup,  "Lens Style", { "Plain (Convex)", "Ribs (Fresnel Lines)", "Rings (Concentric)" }, 1);
+
+    // Initial push of all parameters to canvas
+    pushAllParametersToCanvas();
 }
 
 void ParameterPanelContent::setupSlider(SliderGroup& group, const juce::String& name, double minVal, double maxVal, double defaultVal, double step)
@@ -94,9 +115,10 @@ void ParameterPanelContent::setupSlider(SliderGroup& group, const juce::String& 
     group.valueLabel.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(group.valueLabel);
 
-    group.slider.onValueChange = [&group, step]()
+    group.slider.onValueChange = [this, &group, step]()
     {
         group.valueLabel.setText(juce::String(group.slider.getValue(), (step < 1.0 ? 2 : 0)), juce::dontSendNotification);
+        pushAllParametersToCanvas();
     };
 }
 
@@ -115,7 +137,84 @@ void ParameterPanelContent::setupCombo(ComboGroup& group, const juce::String& na
     group.comboBox.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff272d3b));
     group.comboBox.setColour(juce::ComboBox::textColourId, juce::Colour(0xffdce1ea));
     group.comboBox.setColour(juce::ComboBox::arrowColourId, juce::Colour(0xff8a93a5));
+    group.comboBox.onChange = [this]() { pushAllParametersToCanvas(); };
     addAndMakeVisible(group.comboBox);
+}
+
+void ParameterPanelContent::pushAllParametersToCanvas()
+{
+    VisualParameters p;
+
+    // Scene
+    const int sceneId = sceneGroup.comboBox.getSelectedId();
+    p.scene = static_cast<SceneType>(std::clamp(sceneId - 1, 0, 3));
+
+    // Dynamics
+    p.react = static_cast<float>(reactGroup.slider.getValue());
+    p.chaos = static_cast<float>(chaosGroup.slider.getValue());
+    p.inputGain = static_cast<float>(inputGainGroup.slider.getValue());
+    analysis.setInputGain(p.inputGain);
+    analysis.setReact(p.react);
+
+    // Persistence
+    p.trails = static_cast<float>(trailsGroup.slider.getValue());
+    p.heat = static_cast<float>(heatGroup.slider.getValue());
+    p.decay = static_cast<float>(decayGroup.slider.getValue());
+
+    // Color & Light
+    p.brightness = static_cast<float>(brightnessGroup.slider.getValue());
+    p.hueDrift = static_cast<float>(hueDriftGroup.slider.getValue());
+
+    const int palId = paletteGroup.comboBox.getSelectedId();
+    p.palette = static_cast<PalettePreset>(std::clamp(palId - 1, 0, 5));
+    p.customColour = currentCustomColour;
+    p.vignette = static_cast<float>(vignetteGroup.slider.getValue());
+
+    // Geometry & Optics
+    p.symmetry = static_cast<float>(symmetryGroup.slider.getValue());
+    p.tiles = static_cast<float>(tilesGroup.slider.getValue());
+    p.twist = static_cast<float>(twistGroup.slider.getValue());
+    p.slice = static_cast<float>(sliceGroup.slider.getValue());
+    p.lens = static_cast<float>(lensGroup.slider.getValue());
+
+    const int lensId = lensStyleGroup.comboBox.getSelectedId();
+    p.lensStyle = static_cast<LensStyle>(std::clamp(lensId - 1, 0, 2));
+
+    canvas.setParameters(p);
+}
+
+void ParameterPanelContent::randomizeLook()
+{
+    // Randomize scene (1 to 4)
+    sceneGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 5)), juce::sendNotification);
+
+    // Safe artistic parameter ranges (never black, never broken)
+    reactGroup.slider.setValue(random.nextFloat() * 0.90f + 0.60f, juce::sendNotification);
+    chaosGroup.slider.setValue(random.nextFloat() * 0.35f + 0.10f, juce::sendNotification);
+    trailsGroup.slider.setValue(random.nextFloat() * 0.35f + 0.45f, juce::sendNotification);
+    heatGroup.slider.setValue(random.nextFloat() * 0.35f + 0.15f, juce::sendNotification);
+    decayGroup.slider.setValue(random.nextFloat() * 0.30f + 0.25f, juce::sendNotification);
+    brightnessGroup.slider.setValue(random.nextFloat() * 0.35f + 0.90f, juce::sendNotification); // 0.90 - 1.25
+    hueDriftGroup.slider.setValue(random.nextFloat() * 0.60f, juce::sendNotification);
+    vignetteGroup.slider.setValue(random.nextFloat() * 0.35f + 0.20f, juce::sendNotification);
+
+    const int symChoices[] = { 1, 2, 3, 4 };
+    symmetryGroup.slider.setValue(symChoices[random.nextInt(4)], juce::sendNotification);
+
+    const int tileChoices[] = { 1, 2, 3 };
+    tilesGroup.slider.setValue(tileChoices[random.nextInt(3)], juce::sendNotification);
+
+    twistGroup.slider.setValue((random.nextFloat() - 0.5f) * 0.70f, juce::sendNotification);
+    sliceGroup.slider.setValue(random.nextFloat() * 0.25f, juce::sendNotification);
+    lensGroup.slider.setValue(random.nextFloat() * 0.35f + 0.12f, juce::sendNotification);
+
+    // Randomize Lens Style (1 to 3: Plain, Ribs, Rings)
+    lensStyleGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 4)), juce::sendNotification);
+
+    // Randomize Palette (1 to 5: Prism Core, Neon, Solar, Mono, Dark Floyd)
+    paletteGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 6)), juce::sendNotification);
+
+    pushAllParametersToCanvas();
 }
 
 void ParameterPanelContent::paint(juce::Graphics& g)
@@ -131,11 +230,11 @@ void ParameterPanelContent::resized()
     const int panelWidth = getWidth() - 32;
     constexpr int rowHeight = 24;
     constexpr int rowSpacing = 8;
-    constexpr int sectionSpacing = 18;
+    constexpr int sectionSpacing = 16;
 
     // Audio Loopback & FFT Band Monitor
     monitorView.setBounds(x, y, panelWidth, 142);
-    y += 142 + 16;
+    y += 142 + 14;
 
     auto layoutSlider = [&](SliderGroup& sg)
     {
@@ -155,32 +254,44 @@ void ParameterPanelContent::resized()
     auto layoutSection = [&](juce::Label& lbl)
     {
         lbl.setBounds(x, y, panelWidth, 18);
-        y += 18 + 8;
+        y += 18 + 6;
     };
 
-    // DYNAMICS
+    // 0. SCENE & LOOK
+    layoutSection(sceneSection);
+    layoutCombo(sceneGroup);
+    randomizeButton.setBounds(x, y, panelWidth, 28);
+    y += 28 + sectionSpacing;
+
+    // 1. DYNAMICS
     layoutSection(dynamicsSection);
     layoutSlider(reactGroup);
     layoutSlider(chaosGroup);
     layoutSlider(inputGainGroup);
     y += sectionSpacing;
 
-    // PERSISTENCE
+    // 2. PERSISTENCE
     layoutSection(persistenceSection);
     layoutSlider(trailsGroup);
     layoutSlider(heatGroup);
     layoutSlider(decayGroup);
     y += sectionSpacing;
 
-    // COLOR & LIGHT
+    // 3. COLOR & LIGHT
     layoutSection(colorSection);
     layoutSlider(brightnessGroup);
     layoutSlider(hueDriftGroup);
-    layoutCombo(paletteGroup);
+
+    // Palette with custom color swatch
+    paletteGroup.label.setBounds(x, y, 90, rowHeight);
+    paletteGroup.comboBox.setBounds(x + 92, y, panelWidth - 92 - 60, rowHeight);
+    customColorButton.setBounds(x + panelWidth - 54, y, 54, rowHeight);
+    y += rowHeight + rowSpacing;
+
     layoutSlider(vignetteGroup);
     y += sectionSpacing;
 
-    // GEOMETRY & OPTICS
+    // 4. GEOMETRY & OPTICS
     layoutSection(geometrySection);
     layoutSlider(symmetryGroup);
     layoutSlider(tilesGroup);
@@ -197,8 +308,8 @@ void ParameterPanelContent::resized()
 // ==============================================================================
 // ParameterPanel
 // ==============================================================================
-ParameterPanel::ParameterPanel(AudioAnalysisEngine& analysisEngine)
-    : content(analysisEngine)
+ParameterPanel::ParameterPanel(AudioAnalysisEngine& analysisEngine, VisualCanvas& canvas)
+    : content(analysisEngine, canvas)
 {
     viewport.setViewedComponent(&content, false);
     viewport.setScrollBarsShown(true, false);

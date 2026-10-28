@@ -7,7 +7,7 @@ MainComponent::MainComponent()
     : audioCaptureEngine(audioAnalysisEngine),
       headerBar(audioAnalysisEngine),
       visualCanvas(headerBar, audioAnalysisEngine),
-      parameterPanel(audioAnalysisEngine)
+      parameterPanel(audioAnalysisEngine, visualCanvas)
 {
     addAndMakeVisible(headerBar);
     addAndMakeVisible(visualCanvas);
@@ -28,6 +28,13 @@ MainComponent::MainComponent()
     {
         visualCanvas.toggleScaleMode();
         headerBar.updateScaleMode(visualCanvas.getScaleMode());
+    };
+
+    headerBar.onAspectChanged = [this](int idx)
+    {
+        if (idx == 0) visualCanvas.setPreviewAspect(PreviewAspect::Square1080x1080);
+        else if (idx == 1) visualCanvas.setPreviewAspect(PreviewAspect::Portrait1080x1920);
+        else if (idx == 2) visualCanvas.setPreviewAspect(PreviewAspect::Landscape1920x1080);
     };
 
     // Start background WASAPI system audio loopback capture

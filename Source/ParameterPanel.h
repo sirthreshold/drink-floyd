@@ -3,18 +3,24 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "AudioAnalysisEngine.h"
 #include "AudioMonitorView.h"
+#include "VisualParameters.h"
 
 namespace drinkfloyd
 {
 
+class VisualCanvas;
+
 class ParameterPanelContent : public juce::Component
 {
 public:
-    explicit ParameterPanelContent(AudioAnalysisEngine& analysisEngine);
+    ParameterPanelContent(AudioAnalysisEngine& analysisEngine, VisualCanvas& canvas);
     ~ParameterPanelContent() override = default;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+
+    void randomizeLook();
+    void pushAllParametersToCanvas();
 
 private:
     struct SliderGroup
@@ -34,9 +40,15 @@ private:
     void setupCombo(ComboGroup& group, const juce::String& name, const juce::StringArray& options, int defaultIndex);
 
     AudioAnalysisEngine& analysis;
+    VisualCanvas& canvas;
 
     // Real-time Audio Monitor
     AudioMonitorView monitorView;
+
+    // Scene & Preset Strip
+    juce::Label sceneSection;
+    ComboGroup  sceneGroup;
+    juce::TextButton randomizeButton;
 
     // Section Headers
     juce::Label dynamicsSection;
@@ -44,7 +56,7 @@ private:
     juce::Label colorSection;
     juce::Label geometrySection;
 
-    // 16 Specified Parameters
+    // 16 Canonical Visualizer Parameters
     SliderGroup reactGroup;       // react
     SliderGroup chaosGroup;       // chaos
     SliderGroup inputGainGroup;   // input gain
@@ -54,6 +66,7 @@ private:
     SliderGroup brightnessGroup;  // brightness
     SliderGroup hueDriftGroup;    // hue drift
     ComboGroup  paletteGroup;     // palette
+    juce::TextButton customColorButton; // Custom palette color picker swatch
     SliderGroup vignetteGroup;    // vignette
     SliderGroup symmetryGroup;    // symmetry
     SliderGroup tilesGroup;       // tiles
@@ -62,17 +75,22 @@ private:
     SliderGroup lensGroup;        // lens
     ComboGroup  lensStyleGroup;   // lens style
 
+    juce::Colour currentCustomColour { 0xffff007f }; // Magenta default
+    juce::Random random;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ParameterPanelContent)
 };
 
 class ParameterPanel : public juce::Component
 {
 public:
-    explicit ParameterPanel(AudioAnalysisEngine& analysisEngine);
+    ParameterPanel(AudioAnalysisEngine& analysisEngine, VisualCanvas& canvas);
     ~ParameterPanel() override = default;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+
+    void randomizeLook() { content.randomizeLook(); }
 
 private:
     juce::Viewport viewport;

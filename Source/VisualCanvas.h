@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include "ImageLoader.h"
+#include "VisualParameters.h"
 
 namespace drinkfloyd
 {
@@ -19,10 +20,16 @@ enum class ScaleMode
     Cover  // Keep aspect ratio, fill canvas completely, crop overflow
 };
 
+enum class PreviewAspect
+{
+    Square1080x1080,   // 1:1
+    Portrait1080x1920, // 9:16
+    Landscape1920x1080 // 16:9
+};
+
 class VisualCanvas : public juce::Component,
                      public juce::OpenGLRenderer,
-                     public juce::FileDragAndDropTarget,
-                     private juce::Timer
+                     public juce::FileDragAndDropTarget
 {
 public:
     VisualCanvas(HeaderBar& headerBar, AudioAnalysisEngine& analysisEngine);
@@ -52,22 +59,42 @@ public:
     void toggleScaleMode();
     ScaleMode getScaleMode() const noexcept { return currentScaleMode; }
 
+    void setPreviewAspect(PreviewAspect aspect);
+    PreviewAspect getPreviewAspect() const noexcept { return currentPreviewAspect; }
+
+    void setParameters(const VisualParameters& params);
+    VisualParameters getParameters() const;
+    void setScene(SceneType scene);
+
     bool hasLoadedImage() const noexcept { return hasImage; }
     juce::String getStatusText() const { return currentStatusText; }
 
 private:
-    void timerCallback() override;
     void onImageLoaded(const ImageImportResult& result);
-    void initShader();
+    void initShaders();
+    void releaseFBOs();
 
     HeaderBar& header;
     AudioAnalysisEngine& analysis;
 
-    // OpenGL Context & Texture
+    // OpenGL Context & Pipeline
     juce::OpenGLContext openGLContext;
-    juce::OpenGLTexture openGlTexture;
-    std::unique_ptr<juce::OpenGLShaderProgram> shaderProgram;
-    std::unique_ptr<juce::OpenGLShaderProgram::Uniform> textureUniform;
+    juce::OpenGLTexture sourceTexture;
+    juce::OpenGLTexture defaultPatternTexture;
+
+    // Ping-Pong FBOs for frame feedback & trails
+    std::unique_ptr<juce::OpenGLFrameBuffer> fboPing;
+    std::unique_ptr<juce::OpenGLFrameBuffer> fboPong;
+    int fboWidth = 0;
+    int fboHeight = 0;
+
+    // Dual-Pass Shader Programs
+    std::unique_ptr<juce::OpenGLShaderProgram> warpShader;
+    std::unique_ptr<juce::OpenGLShaderProgram> presentShader;
+
+    // Visual Parameters
+    mutable std::mutex paramMutex;
+    VisualParameters parameters;
 
     // Thread-safe image handoff to OpenGL render thread
     std::mutex imageMutex;
@@ -77,6 +104,7 @@ private:
 
     // Display & State
     ScaleMode currentScaleMode = ScaleMode::Fit;
+    PreviewAspect currentPreviewAspect = PreviewAspect::Square1080x1080;
     bool isDragOver = false;
     bool isLoading = false;
     int imageWidth = 0;
@@ -84,6 +112,8 @@ private:
     juce::String currentSourceName;
     juce::String currentStatusText;
     bool isStatusError = false;
+
+    double startTime = 0.0;
 
     // FileChooser owner
     std::unique_ptr<juce::FileChooser> activeFileChooser;

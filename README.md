@@ -166,6 +166,34 @@ Phase 2 implements native Windows system-audio capture and real-time frequency a
 
 ---
 
+## Phase 3: GPU Visual Engine, Scene System & Parameter Shader Pipeline
+
+Phase 3 introduces the complete dual-pass OpenGL/GLSL visual engine:
+- **Dual-Pass GLSL Pipeline**:
+  - **Pass 1 (Warp & Feedback FBO)**: Evaluates per-pixel deformations, optical lenses, kaleidoscopic symmetries, and ping-pong framebuffer persistence (trails, decay, heat).
+  - **Pass 2 (Presentation Viewport)**: Color grading, palette remapping (5 presets + user custom swatch), continuous hue drift, cinematic vignette, and brightness scaling.
+- **4 Original Scene Systems**:
+  - **Smear**: Gravitational melting and directional chromatic pixel sliding driven by bass and beat transients.
+  - **Ripple**: Concentric shockwave liquid ripples undulating outwards from center, triggered by kick onsets.
+  - **Flow**: Organic liquid advection / curl noise fluid swirl, driving harmonic wave currents.
+  - **Tiles**: Kaleidoscopic mosaic grid vibrating, shifting, and rotating quadrant tiles to audio frequencies.
+  - *Seamless switching*: Switching scenes never reloads the loaded image or interrupts audio capture.
+- **14 Active Shader Uniforms**:
+  `react`, `chaos`, `trails`, `heat`, `decay`, `brightness`, `inputGain`, `symmetry`, `tiles`, `twist`, `slice`, `lens`, `hueDrift`, `vignette`.
+- **Palette Presets & Custom Colour**:
+  - `Prism Core`: Spectral dispersion
+  - `Neon Ultraviolet`: Deep violet $\to$ hot magenta $\to$ neon cyan
+  - `Solar Flare`: Obsidian black $\to$ deep ruby $\to$ burning amber $\to$ white hot
+  - `Monochrome Ice`: Dark navy $\to$ frosted cyan $\to$ silver white
+  - `Dark Floyd`: Pitch black $\to$ emerald forest $\to$ prism rainbow highlights
+  - `Custom`: Interactive color swatch cycling vibrant designer hues.
+- **Lens Style Presets**: `Plain` (spherical convex), `Ribs` (fresnel lines), `Rings` (concentric rings).
+- **Randomize Look Button**: Safely randomizes scene-compatible parameters within stable ranges (never black, never broken).
+- **Preview Resolution Profiles**: Real-time switching between `1080x1080` (1:1), `1080x1920` (9:16), and `1920x1080` (16:9).
+- **True Rendered FPS**: Header readout measures actual GPU VSync frame swap times (~60.0 FPS).
+
+---
+
 ## Next Steps (Subsequent Phases)
 - **Phase 1**: WASAPI loopback audio capture integration.
 - **Phase 2**: Real-time GL/DirectX shader pipeline & parameter modulation.

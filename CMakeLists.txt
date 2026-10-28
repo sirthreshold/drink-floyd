@@ -50,6 +50,7 @@ target_sources(DrinkFloyd PRIVATE
     Source/VisualCanvas.cpp
     Source/ParameterPanel.h
     Source/ParameterPanel.cpp
+    Source/VisualParameters.h
     Source/ImageLoader.h
     Source/ImageLoader.cpp
     Source/AudioTypes.h
@@ -159,4 +160,63 @@ target_link_libraries(LiveCaptureTest PRIVATE
     user32
     mmdevapi
     winmm
+)
+
+# Test Runner Executable (Phase 3 Visual Engine Verification)
+add_executable(Phase3VerificationTest
+    Tests/Phase3VerificationTest.cpp
+    Source/VisualParameters.h
+    Source/AudioTypes.h
+    Source/AudioAnalysisEngine.h
+    Source/AudioAnalysisEngine.cpp
+)
+
+target_compile_definitions(Phase3VerificationTest PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+)
+
+target_link_libraries(Phase3VerificationTest PRIVATE
+    juce::juce_gui_extra
+    juce::juce_opengl
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+    ole32
+    user32
+)
+
+# Test Runner Executable (Render Benchmark at 1080x1080)
+add_executable(RenderBenchmarkTest
+    Tests/RenderBenchmarkTest.cpp
+    Source/VisualCanvas.h
+    Source/VisualCanvas.cpp
+    Source/HeaderBar.h
+    Source/HeaderBar.cpp
+    Source/AudioAnalysisEngine.h
+    Source/AudioAnalysisEngine.cpp
+    Source/ImageLoader.h
+    Source/ImageLoader.cpp
+    Source/VisualParameters.h
+    Source/AudioTypes.h
+)
+
+target_compile_definitions(RenderBenchmarkTest PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+)
+
+target_link_libraries(RenderBenchmarkTest PRIVATE
+    juce::juce_gui_extra
+    juce::juce_opengl
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+    windowscodecs
+    ole32
+    user32
+    gdi32
+    mmdevapi
 )
