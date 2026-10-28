@@ -6,8 +6,13 @@ namespace drinkfloyd
 // ==============================================================================
 // ParameterPanelContent
 // ==============================================================================
-ParameterPanelContent::ParameterPanelContent()
+ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine)
+    : analysis(analysisEngine),
+      monitorView(analysisEngine)
 {
+    // Audio Monitor View at the top
+    addAndMakeVisible(monitorView);
+
     auto setupHeader = [this](juce::Label& lbl, const juce::String& text)
     {
         lbl.setText(text, juce::dontSendNotification);
@@ -22,9 +27,30 @@ ParameterPanelContent::ParameterPanelContent()
     setupHeader(geometrySection,    "GEOMETRY & OPTICS");
 
     // 1. Dynamics
-    setupSlider(reactGroup,     "React",      0.0, 1.0, 0.50);
+    setupSlider(reactGroup,     "React",      0.0, 2.0, 1.00);
     setupSlider(chaosGroup,     "Chaos",      0.0, 1.0, 0.20);
-    setupSlider(inputGainGroup, "Input Gain", 0.0, 2.0, 1.00);
+    setupSlider(inputGainGroup, "Input Gain", 0.0, 3.0, 1.00);
+
+    // Wire input gain & react to the audio analysis engine
+    {
+        auto baseReactChange = reactGroup.slider.onValueChange;
+        reactGroup.slider.onValueChange = [this, baseReactChange]()
+        {
+            if (baseReactChange)
+                baseReactChange();
+            analysis.setReact(static_cast<float>(reactGroup.slider.getValue()));
+        };
+        analysis.setReact(static_cast<float>(reactGroup.slider.getValue()));
+
+        auto baseGainChange = inputGainGroup.slider.onValueChange;
+        inputGainGroup.slider.onValueChange = [this, baseGainChange]()
+        {
+            if (baseGainChange)
+                baseGainChange();
+            analysis.setInputGain(static_cast<float>(inputGainGroup.slider.getValue()));
+        };
+        analysis.setInputGain(static_cast<float>(inputGainGroup.slider.getValue()));
+    }
 
     // 2. Persistence
     setupSlider(trailsGroup, "Trails", 0.0, 1.0, 0.65);
@@ -107,6 +133,10 @@ void ParameterPanelContent::resized()
     constexpr int rowSpacing = 8;
     constexpr int sectionSpacing = 18;
 
+    // Audio Loopback & FFT Band Monitor
+    monitorView.setBounds(x, y, panelWidth, 142);
+    y += 142 + 16;
+
     auto layoutSlider = [&](SliderGroup& sg)
     {
         sg.label.setBounds(x, y, 90, rowHeight);
@@ -167,7 +197,8 @@ void ParameterPanelContent::resized()
 // ==============================================================================
 // ParameterPanel
 // ==============================================================================
-ParameterPanel::ParameterPanel()
+ParameterPanel::ParameterPanel(AudioAnalysisEngine& analysisEngine)
+    : content(analysisEngine)
 {
     viewport.setViewedComponent(&content, false);
     viewport.setScrollBarsShown(true, false);

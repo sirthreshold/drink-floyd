@@ -4,14 +4,66 @@ namespace drinkfloyd
 {
 
 MainComponent::MainComponent()
-    : visualCanvas(headerBar)
+    : audioCaptureEngine(audioAnalysisEngine),
+      headerBar(audioAnalysisEngine),
+      visualCanvas(headerBar, audioAnalysisEngine),
+      parameterPanel(audioAnalysisEngine)
 {
     addAndMakeVisible(headerBar);
     addAndMakeVisible(visualCanvas);
     addAndMakeVisible(parameterPanel);
 
-    // Initial default size for a desktop visualizer window
+    // Wire HeaderBar buttons to VisualCanvas actions
+    headerBar.onOpenImage = [this]()
+    {
+        visualCanvas.openFileDialog();
+    };
+
+    headerBar.onPasteImage = [this]()
+    {
+        visualCanvas.pasteFromClipboard();
+    };
+
+    headerBar.onToggleScaleMode = [this]()
+    {
+        visualCanvas.toggleScaleMode();
+        headerBar.updateScaleMode(visualCanvas.getScaleMode());
+    };
+
+    // Start background WASAPI system audio loopback capture
+    audioCaptureEngine.start();
+
+    // Keyboard shortcuts (Ctrl+V paste, Ctrl+O open)
+    addKeyListener(this);
+    setWantsKeyboardFocus(true);
+
     setSize(1280, 800);
+}
+
+MainComponent::~MainComponent()
+{
+    audioCaptureEngine.stop();
+    removeKeyListener(this);
+}
+
+bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* /*originatingComponent*/)
+{
+    if (key.getModifiers().isCommandDown()) // Ctrl on Windows
+    {
+        if (key.getKeyCode() == 'V' || key.getKeyCode() == 'v')
+        {
+            visualCanvas.pasteFromClipboard();
+            return true;
+        }
+
+        if (key.getKeyCode() == 'O' || key.getKeyCode() == 'o')
+        {
+            visualCanvas.openFileDialog();
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void MainComponent::paint(juce::Graphics& g)
@@ -23,15 +75,13 @@ void MainComponent::resized()
 {
     auto area = getLocalBounds();
 
-    // 1. Header Bar at the top (height 44px)
-    constexpr int headerHeight = 44;
-    headerBar.setBounds(area.removeFromTop(headerHeight));
+    // Top Header: 46px height
+    headerBar.setBounds(area.removeFromTop(46));
 
-    // 2. Right parameter panel (fixed comfortable width of 340px)
-    constexpr int parameterPanelWidth = 340;
-    parameterPanel.setBounds(area.removeFromRight(parameterPanelWidth));
+    // Right Sidebar (Parameter Panel): fixed 320px width
+    parameterPanel.setBounds(area.removeFromRight(320));
 
-    // 3. Left remaining area is the large visual canvas
+    // Remaining area: Visual Canvas
     visualCanvas.setBounds(area);
 }
 

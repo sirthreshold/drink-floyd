@@ -50,6 +50,15 @@ target_sources(DrinkFloyd PRIVATE
     Source/VisualCanvas.cpp
     Source/ParameterPanel.h
     Source/ParameterPanel.cpp
+    Source/ImageLoader.h
+    Source/ImageLoader.cpp
+    Source/AudioTypes.h
+    Source/AudioAnalysisEngine.h
+    Source/AudioAnalysisEngine.cpp
+    Source/AudioCaptureEngine.h
+    Source/AudioCaptureEngine.cpp
+    Source/AudioMonitorView.h
+    Source/AudioMonitorView.cpp
 )
 
 # Compile Definitions
@@ -65,6 +74,89 @@ target_compile_definitions(DrinkFloyd PRIVATE
 # Link Libraries
 target_link_libraries(DrinkFloyd PRIVATE
     juce::juce_gui_extra
+    juce::juce_opengl
     juce::juce_recommended_config_flags
     juce::juce_recommended_warning_flags
+    windowscodecs
+    ole32
+    user32
+    gdi32
+    mmdevapi
+)
+
+# Test Runner Executable (Image Import)
+add_executable(ImageImportTest
+    Tests/ImageImportTest.cpp
+    Source/ImageLoader.h
+    Source/ImageLoader.cpp
+)
+
+target_compile_definitions(ImageImportTest PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+)
+
+target_link_libraries(ImageImportTest PRIVATE
+    juce::juce_gui_extra
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+    windowscodecs
+    ole32
+    user32
+    gdi32
+)
+
+# Test Runner Executable (Audio Analysis & WASAPI Loopback)
+add_executable(AudioAnalysisTest
+    Tests/AudioAnalysisTest.cpp
+    Source/AudioTypes.h
+    Source/AudioAnalysisEngine.h
+    Source/AudioAnalysisEngine.cpp
+    Source/AudioCaptureEngine.h
+    Source/AudioCaptureEngine.cpp
+)
+
+target_compile_definitions(AudioAnalysisTest PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+)
+
+target_link_libraries(AudioAnalysisTest PRIVATE
+    juce::juce_gui_extra
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+    ole32
+    user32
+    mmdevapi
+)
+
+# Test Runner Executable (Live WASAPI System Loopback Playback Test)
+add_executable(LiveCaptureTest
+    Tests/LiveCaptureTest.cpp
+    Source/AudioTypes.h
+    Source/AudioAnalysisEngine.h
+    Source/AudioAnalysisEngine.cpp
+    Source/AudioCaptureEngine.h
+    Source/AudioCaptureEngine.cpp
+)
+
+target_compile_definitions(LiveCaptureTest PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+)
+
+target_link_libraries(LiveCaptureTest PRIVATE
+    juce::juce_gui_extra
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+    ole32
+    user32
+    mmdevapi
+    winmm
 )

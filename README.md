@@ -116,6 +116,56 @@ drink-floyd/
 
 ---
 
+## Phase 1: Image Import & OpenGL Viewport
+
+Phase 1 adds native image import without blocking the UI thread:
+- **Supported Formats**: JPG, PNG, WebP, BMP (decoded via native Windows Imaging Component / WIC with JUCE fallback).
+- **OpenGL Canvas**: Uploads image as an OpenGL texture rendered to a viewport quad.
+- **Aspect Ratio & Fit Mode**: Original aspect ratio preserved by default; toggleable between **Fit** (letterbox) and **Cover** (full bleed).
+- **Auto-Downscale**: Images exceeding 4096×4096 are automatically downscaled proportionally to the max texture limit (4096px) with an indicator in the status line.
+- **Status Bar**: Bottom bar displays image filename, dimensions, downscale notes, and errors.
+
+### Manual Test Instructions (3 Import Paths)
+
+1. **Path 1: File Dialog Open**
+   - Click the **"Open Image..."** button in the header bar or press `Ctrl+O` (or click directly on the canvas placeholder).
+   - Select any `.jpg`, `.png`, `.webp`, or `.bmp` image from disk.
+   - Verify: The image is loaded asynchronously, uploaded as an OpenGL texture, rendered maintaining aspect ratio, and the file name + dimensions appear in the bottom status line.
+
+2. **Path 2: Drag & Drop**
+   - Drag an image file (`.png`, `.jpg`, `.webp`, `.bmp`) directly from Windows File Explorer onto the canvas.
+   - Verify: Hovering displays a cyan highlight drop border. Dropping the file immediately loads and replaces the canvas texture.
+
+3. **Path 3: Clipboard Paste (`Ctrl+V`)**
+   - **Screenshot Workflow**: Press `Win+Shift+S` or `PrintScreen` to capture a screen region, then focus the Drink Floyd window and press `Ctrl+V` (or click "Paste (Ctrl+V)").
+   - Verify: The screenshot is decoded and loaded into the canvas with status line showing `[Clipboard Screenshot] (WxH)`.
+   - **Empty / Text Clipboard Test**: Copy plain text from an editor, then press `Ctrl+V`. Verify: The app **never crashes**; instead, it displays an amber warning in the status line: `"Clipboard does not contain image data (copied text or empty)."`.
+
+---
+
+## Phase 2: Native WASAPI Audio Loopback & FFT Analysis Engine
+
+Phase 2 implements native Windows system-audio capture and real-time frequency analysis:
+- **WASAPI Loopback Capture**: Captures whatever audio is playing through the default Windows playback endpoint (`AUDCLNT_STREAMFLAGS_LOOPBACK`).
+- **Dynamic Device Change Handling**: Uses `IMMNotificationClient` to seamlessly migrate capture streams when default playback device changes (e.g. unplugging headphones) without crashing or requiring app restart.
+- **Sample Rate / Format Conversion**: Transparently handles 44.1k, 48k, 96k, 192k at 16/24/32-bit integer or 32-bit float, downmixing to normalized mono.
+- **FFT & Frequency Bands**: 2048-point Hann-windowed FFT partitioned into 4 musical bands:
+  - **Bass**: ~20 Hz – 250 Hz
+  - **Low-Mid**: ~250 Hz – 500 Hz
+  - **Mid**: ~500 Hz – 2000 Hz
+  - **High**: ~2000 Hz – 16000 Hz
+- **Envelope Followers**: Attack (fast ~12ms) and release (smooth ~160ms) smoothing on each band.
+- **Beat & Onset Energy**: Real-time kick/transient flux detection triggering a beat onset pulse.
+- **Live Parameter Controls**:
+  - `Input Gain`: Adjusts pre-FFT audio sensitivity.
+  - `React`: Multiplies visual modulation response (0.0x produces zero reaction, 2.0x produces high sensitivity).
+- **Audio Monitor UI**:
+  - Top header badge displaying live capture status (`Listening` / `No audio detected` / `Device changed`) and active device name.
+  - Dedicated animated debug monitor at the top of the parameter sidebar showing real-time `BASS`, `LOW-MID`, `MID`, `HIGH` level meters and `BEAT` indicator pill.
+  - Canvas test value: Texture quad scale dynamically pulsates with bass energy (`1.0 + 0.08 * bass * react`).
+
+---
+
 ## Next Steps (Subsequent Phases)
 - **Phase 1**: WASAPI loopback audio capture integration.
 - **Phase 2**: Real-time GL/DirectX shader pipeline & parameter modulation.

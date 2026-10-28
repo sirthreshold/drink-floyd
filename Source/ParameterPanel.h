@@ -1,6 +1,8 @@
 #pragma once
 
 #include <juce_gui_extra/juce_gui_extra.h>
+#include "AudioAnalysisEngine.h"
+#include "AudioMonitorView.h"
 
 namespace drinkfloyd
 {
@@ -8,7 +10,7 @@ namespace drinkfloyd
 class ParameterPanelContent : public juce::Component
 {
 public:
-    ParameterPanelContent();
+    explicit ParameterPanelContent(AudioAnalysisEngine& analysisEngine);
     ~ParameterPanelContent() override = default;
 
     void paint(juce::Graphics& g) override;
@@ -30,6 +32,11 @@ private:
 
     void setupSlider(SliderGroup& group, const juce::String& name, double minVal, double maxVal, double defaultVal, double step = 0.01);
     void setupCombo(ComboGroup& group, const juce::String& name, const juce::StringArray& options, int defaultIndex);
+
+    AudioAnalysisEngine& analysis;
+
+    // Real-time Audio Monitor
+    AudioMonitorView monitorView;
 
     // Section Headers
     juce::Label dynamicsSection;
@@ -61,7 +68,7 @@ private:
 class ParameterPanel : public juce::Component
 {
 public:
-    ParameterPanel();
+    explicit ParameterPanel(AudioAnalysisEngine& analysisEngine);
     ~ParameterPanel() override = default;
 
     void paint(juce::Graphics& g) override;
