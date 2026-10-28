@@ -29,7 +29,8 @@ inline juce::String getSceneName(SceneType scene)
 
 enum class PalettePreset : int
 {
-    PrismCore = 0,
+    Original = 0,
+    PrismCore = 0, // Alias for backwards compatibility
     NeonUltraviolet = 1,
     SolarFlare = 2,
     MonochromeIce = 3,
@@ -54,6 +55,7 @@ struct VisualParameters
     float chaos = 0.25f;
     float melt = 1.0f;
     float scatter = 1.0f;
+    float pixelSize = 6.0f; // Block size in px at 1080p (range 3.0 to 12.0, default 6.0)
     float inputGain = 1.0f;
 
     // Persistence
@@ -64,7 +66,7 @@ struct VisualParameters
     // Color & Light (Hue Drift defaults to 0.0 for natural original colors)
     float brightness = 1.0f;
     float hueDrift = 0.0f;
-    PalettePreset palette = PalettePreset::PrismCore;
+    PalettePreset palette = PalettePreset::Original;
     juce::Colour customColour = juce::Colour(0xffff007f); // Vibrant magenta default
     float vignette = 0.35f;
 

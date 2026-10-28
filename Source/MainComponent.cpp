@@ -52,6 +52,7 @@ MainComponent::MainComponent()
 
     // Keyboard shortcuts (Ctrl+V, Ctrl+O, F11, F, Esc)
     addKeyListener(this);
+    visualCanvas.addKeyListener(this);
     setWantsKeyboardFocus(true);
 
     setSize(1280, 800);
@@ -65,29 +66,37 @@ MainComponent::~MainComponent()
 
 void MainComponent::toggleFullscreen()
 {
+    isFullscreen = !isFullscreen;
     auto* topLevel = getTopLevelComponent();
-    if (auto* dw = dynamic_cast<juce::DocumentWindow*>(topLevel))
+    auto* dw = dynamic_cast<juce::DocumentWindow*>(topLevel);
+
+    if (isFullscreen)
     {
-        isFullscreen = !isFullscreen;
-        if (isFullscreen)
+        if (dw != nullptr)
         {
             savedWindowBounds = dw->getBounds();
-            headerBar.setVisible(false);
-            parameterPanel.setVisible(false);
-            visualCanvas.setFullscreen(true);
-            dw->setFullScreen(true);
+            dw->setTitleBarHeight(0);
+            juce::Desktop::getInstance().setKioskModeComponent(dw, false);
         }
-        else
+        headerBar.setVisible(false);
+        parameterPanel.setVisible(false);
+        visualCanvas.setFullscreen(true);
+    }
+    else
+    {
+        if (dw != nullptr)
         {
-            dw->setFullScreen(false);
+            juce::Desktop::getInstance().setKioskModeComponent(nullptr);
+            dw->setUsingNativeTitleBar(true);
+            dw->setTitleBarHeight(dw->getTitleBarHeight());
             if (!savedWindowBounds.isEmpty())
                 dw->setBounds(savedWindowBounds);
-            headerBar.setVisible(true);
-            parameterPanel.setVisible(true);
-            visualCanvas.setFullscreen(false);
         }
-        resized();
+        headerBar.setVisible(true);
+        parameterPanel.setVisible(true);
+        visualCanvas.setFullscreen(false);
     }
+    resized();
 }
 
 void MainComponent::exitFullscreen()

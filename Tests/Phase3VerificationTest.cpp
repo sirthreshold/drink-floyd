@@ -41,13 +41,15 @@ int main()
         runTest("All 5 Scenes Registered (Pixel Melt, Smear, Ripple, Flow, Tiles)", allScenesPresent);
     }
 
-    // 2. Original Colors & Separate Melt/Scatter Parameters
+    // 2. Original Colors & Separate Melt/Scatter/PixelSize Parameters
     {
         drinkfloyd::VisualParameters p;
-        bool originalColorsDefault = (p.hueDrift == 0.0f && p.palette == drinkfloyd::PalettePreset::PrismCore);
+        bool originalColorsDefault = (p.hueDrift == 0.0f && p.palette == drinkfloyd::PalettePreset::Original);
         bool meltAndScatterSeparate = (p.melt == 1.0f && p.scatter == 1.0f);
-        runTest("Original Color Preserved (HueDrift = 0.0, PrismCore default)", originalColorsDefault);
+        bool pixelSizeDefault = (p.pixelSize == 6.0f);
+        runTest("Original Color Preserved (HueDrift = 0.0, Original palette default)", originalColorsDefault);
         runTest("Independent Melt & Scatter Parameters (Melt=1.0, Scatter=1.0)", meltAndScatterSeparate);
+        runTest("Default Pixel Size Middle Ground (6.0 px, ~width/180)", pixelSizeDefault);
     }
 
     // 3. Mathematical Centering Verification (Both Horizontally & Vertically)

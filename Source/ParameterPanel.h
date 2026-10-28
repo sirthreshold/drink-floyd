@@ -60,6 +60,7 @@ private:
     SliderGroup reactGroup;       // react
     SliderGroup meltGroup;        // melt (gravity displacement)
     SliderGroup scatterGroup;     // scatter (radial explosion)
+    SliderGroup pixelSizeGroup;   // pixel block size (3 - 12 px, default 6 px)
     SliderGroup chaosGroup;       // chaos
     SliderGroup inputGainGroup;   // input gain
     SliderGroup trailsGroup;      // trails

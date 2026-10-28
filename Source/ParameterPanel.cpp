@@ -49,6 +49,7 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     setupSlider(reactGroup,       "React",       0.0, 2.0, 1.00);
     setupSlider(meltGroup,        "Melt",        0.0, 2.0, 1.00);
     setupSlider(scatterGroup,     "Scatter",     0.0, 2.0, 1.00);
+    setupSlider(pixelSizeGroup,   "Pixel Size",  3.0, 12.0, 6.00, 0.5);
     setupSlider(chaosGroup,       "Chaos",       0.0, 1.0, 0.25);
     setupSlider(inputGainGroup,   "Input Gain",  0.0, 3.0, 1.00);
 
@@ -60,7 +61,7 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     // 3. Color & Light (Hue Drift defaults to 0.0 for original natural colors)
     setupSlider(brightnessGroup, "Brightness", 0.1, 2.0, 1.00);
     setupSlider(hueDriftGroup,   "Hue Drift",   0.0, 1.0, 0.00);
-    setupCombo(paletteGroup,     "Palette",    { "Prism Core", "Neon Ultraviolet", "Solar Flare", "Monochrome Ice", "Dark Floyd", "Custom" }, 1);
+    setupCombo(paletteGroup,     "Palette",    { "Original", "Neon Ultraviolet", "Solar Flare", "Monochrome Ice", "Dark Floyd", "Custom" }, 1);
 
     // Custom Color Swatch button
     customColorButton.setButtonText("Swatch");
@@ -160,6 +161,7 @@ void ParameterPanelContent::pushAllParametersToCanvas()
     p.react = static_cast<float>(reactGroup.slider.getValue());
     p.melt = static_cast<float>(meltGroup.slider.getValue());
     p.scatter = static_cast<float>(scatterGroup.slider.getValue());
+    p.pixelSize = static_cast<float>(pixelSizeGroup.slider.getValue());
     p.chaos = static_cast<float>(chaosGroup.slider.getValue());
     p.inputGain = static_cast<float>(inputGainGroup.slider.getValue());
     analysis.setInputGain(p.inputGain);
@@ -212,8 +214,9 @@ void ParameterPanelContent::randomizeLook()
 
     if (currentSceneId == 1) // Pixel Melt & Scatter: preserve natural colors
     {
+        pixelSizeGroup.slider.setValue(6.0, juce::sendNotification);
         hueDriftGroup.slider.setValue(0.0, juce::sendNotification);
-        paletteGroup.comboBox.setSelectedId(1, juce::sendNotification); // Prism Core (Original)
+        paletteGroup.comboBox.setSelectedId(1, juce::sendNotification); // Original
         lensGroup.slider.setValue(0.0, juce::sendNotification);
     }
     else
@@ -288,6 +291,7 @@ void ParameterPanelContent::resized()
     layoutSlider(reactGroup);
     layoutSlider(meltGroup);
     layoutSlider(scatterGroup);
+    layoutSlider(pixelSizeGroup);
     layoutSlider(chaosGroup);
     layoutSlider(inputGainGroup);
     y += sectionSpacing;

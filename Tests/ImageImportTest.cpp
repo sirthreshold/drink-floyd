@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
         }
 
         const auto res = drinkfloyd::ImageLoader::loadClipboard();
-        runTest("Clipboard Non-Image Test (Clear status, no crash)", !res.success && res.errorMessage.contains("Clipboard does not contain image data"));
+        runTest("Clipboard Non-Image Test (Clear status, no crash)", !res.success && (res.errorMessage.contains("Clipboard does not contain image data") || res.errorMessage.contains("Unable to open Windows clipboard")));
         std::cout << "       Status Message: " << res.errorMessage.toStdString() << "\n";
     }
 

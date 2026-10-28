@@ -107,7 +107,8 @@ private:
     GLuint blockVbo = 0;
     GLuint blockIbo = 0;
     int blockCount = 0;
-    int gridResolution = 100; // 100x100 = 10,000 discrete blocks
+    int gridResolution = 180; // 180x180 at 1080p -> default ~6px blocks
+    float currentPixelSize = 6.0f;
 
     // Visual Parameters
     mutable std::mutex paramMutex;

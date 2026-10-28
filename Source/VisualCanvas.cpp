@@ -30,7 +30,8 @@ static const char* commonVertexShader = R"(
 static const char* meltScatterVertexShader = R"(
     attribute vec2 a_blockCoord;
     attribute vec2 a_corner;
-    attribute vec2 a_restUV;
+    attribute vec2 a_cornerUV;
+    attribute vec2 a_centerUV;
 
     varying vec2 v_texCoord;
 
@@ -66,48 +67,56 @@ static const char* meltScatterVertexShader = R"(
 
     void main()
     {
-        v_texCoord = a_restUV;
+        // Base rest position in NDC [-1.0, 1.0] from center UV
+        vec2 restCenter = (a_centerUV - vec2(0.5)) * 2.0;
 
-        // Base rest position in NDC [-1.0, 1.0]
-        vec2 restCenter = (a_restUV - vec2(0.5)) * 2.0;
-
-        // Block-specific random seeds
+        // Block-specific stable random seeds
         vec2 rndDir = hash2(a_blockCoord);
         float rndVal1 = hash1(a_blockCoord * 1.618);
         float rndVal2 = hash1(a_blockCoord * 3.1415 + vec2(7.1, 13.3));
 
-        // Audio force: strongly driven by bass energy and kick beats
-        float audioForce = (u_bass * 1.6 + u_beat * 2.0) * u_react;
+        // Audio force: driven by bass, beat transients, and mid punch
+        float audioForce = (u_bass * 1.4 + u_beat * 1.2 + u_lowMid * 0.4) * u_react;
 
         // Activation threshold: staggered breakaway so blocks melt dynamically
-        float threshold = rndVal1 * 0.38;
-        float active = max(0.0, audioForce - threshold) * (1.0 + u_chaos * 1.25);
+        float threshold = rndVal1 * 0.35;
+        float active = max(0.0, audioForce - threshold) * (1.0 + u_chaos * 0.8);
+        active = clamp(active, 0.0, 1.0);
 
         // 1. Melt Downward: gravity pulls blocks down with slight horizontal sway
-        float meltDist = active * (0.35 + 0.65 * rndVal2) * u_melt;
-        vec2 meltOffset = vec2(0.0, -meltDist);
-        meltOffset.x += sin(a_blockCoord.y * 0.15 + u_time * 2.0) * u_chaos * active * 0.15;
+        float meltDist = active * (0.10 + 0.35 * rndVal2) * u_melt;
+        vec2 meltOffset = vec2((rndVal1 - 0.5) * 0.25 * u_chaos * active, -meltDist);
 
-        // 2. Scatter Outward: explodes randomly in all directions across canvas
-        float scatterDist = active * (0.22 + 0.78 * rndVal1) * u_scatter;
+        // 2. Scatter Outward: explodes radially in random stable direction
+        float scatterDist = active * (0.05 + 0.22 * rndVal1) * u_scatter * (0.35 + 0.65 * u_chaos);
         vec2 scatterOffset = rndDir * scatterDist;
 
         // 3. Combined displacement
         vec2 disp = meltOffset + scatterOffset;
 
-        // 4. Reform: When audio drops (silence), disp -> 0 automatically
+        // 4. Cap displacement to maintain visual coherence (shapes/faces stay clustered)
+        float maxDisp = 0.45 * (u_react * 0.70 + 0.30);
+        if (length(disp) > maxDisp)
+            disp = normalize(disp) * maxDisp;
+
+        // 5. Reform: When audio drops (silence / decay), disp -> 0 smoothly
         if (active > 0.001)
         {
-            disp *= clamp(1.0 - u_decay * 0.15, 0.1, 1.0);
+            disp *= clamp(1.0 - u_decay * 0.20, 0.05, 1.0);
+        }
+        else
+        {
+            disp = vec2(0.0);
         }
 
         vec2 blockCenter = restCenter + disp;
 
         // Block scale & tumbling rotation
-        float blockScale = 1.0 + active * 0.20;
+        float blockScale = 1.0 + active * 0.15;
         vec2 cornerOffset = a_corner * u_blockSize * blockScale;
 
-        float blockRot = active * (rndVal1 - 0.5) * 3.5 * (1.0 + u_mid * 2.0);
+        // Stable rotation angle (proportional to displacement / active, stable direction)
+        float blockRot = active * (rndVal1 - 0.5) * 2.5 * (1.0 + u_mid * 1.5);
         float cosR = cos(blockRot);
         float sinR = sin(blockRot);
         vec2 rotatedCorner = vec2(cornerOffset.x * cosR - cornerOffset.y * sinR,
@@ -115,6 +124,10 @@ static const char* meltScatterVertexShader = R"(
 
         vec2 finalPos = blockCenter + rotatedCorner;
         gl_Position = vec4(finalPos, 0.0, 1.0);
+
+        // Dynamic UV: At rest (active=0), 100% full-resolution sharp original image.
+        // As active increases, transitions smoothly to block center sampling.
+        v_texCoord = mix(a_cornerUV, a_centerUV, clamp(active * 2.0, 0.0, 1.0));
     }
 )";
 
@@ -154,7 +167,8 @@ static const char* trailsFeedbackFragmentShader = R"(
     void main()
     {
         vec4 prev = texture2D(u_prevTexture, vTexCoord);
-        float trailWeight = clamp(u_trails * (1.0 - u_decay * 0.45), 0.0, 0.96);
+        // Melt streaks fade out gracefully governed by Trails and Decay
+        float trailWeight = clamp(u_trails * (1.0 - u_decay * 0.50), 0.0, 0.92);
         gl_FragColor = prev * trailWeight;
     }
 )";
@@ -346,15 +360,14 @@ static const char* presentFragmentShader = R"(
         vec2 uv = vTexCoord;
         vec4 col = texture2D(u_frameTexture, uv);
 
-        // For Pixel Melt & Scatter: preserve original colors by default (no hue shift or palette unless requested)
-        if (u_isPixelMelt == 0 || abs(u_hueDrift) > 0.001)
+        // Hue drift: applied only if non-zero (defaults to 0.0 for pure original colors)
+        if (abs(u_hueDrift) > 0.001)
         {
-            if (abs(u_hueDrift) > 0.001)
-                col.rgb = rotateHue(col.rgb, u_hueDrift * 6.2831853);
+            col.rgb = rotateHue(col.rgb, u_hueDrift * 6.2831853);
         }
 
-        // Palette presets (bypassed if Pixel Melt & Scatter and palette is PrismCore)
-        if (u_palette > 0 || u_isPixelMelt == 0)
+        // Palette presets (0 = Original: strictly untouched true colors; 1-5 = stylized presets)
+        if (u_palette > 0)
         {
             float lum = clamp(dot(col.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
 
@@ -534,7 +547,8 @@ void VisualCanvas::initBlockMesh()
     {
         float blockCoordX, blockCoordY;
         float cornerX, cornerY;
-        float restU, restV;
+        float cornerU, cornerV; // Exact continuous corner UV (sharp original image at rest)
+        float centerU, centerV; // Block center UV (for discrete block sampling during scatter)
     };
 
     const int N = gridResolution;
@@ -556,8 +570,8 @@ void VisualCanvas::initBlockMesh()
     {
         for (int x = 0; x < N; ++x)
         {
-            const float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(N);
-            const float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(N);
+            const float centerU = (static_cast<float>(x) + 0.5f) / static_cast<float>(N);
+            const float centerV = (static_cast<float>(y) + 0.5f) / static_cast<float>(N);
 
             for (int c = 0; c < 4; ++c)
             {
@@ -566,8 +580,10 @@ void VisualCanvas::initBlockMesh()
                 vert.blockCoordY = static_cast<float>(y);
                 vert.cornerX = corners[c][0];
                 vert.cornerY = corners[c][1];
-                vert.restU = u;
-                vert.restV = v;
+                vert.cornerU = (static_cast<float>(x) + 0.5f + corners[c][0]) / static_cast<float>(N);
+                vert.cornerV = (static_cast<float>(y) + 0.5f + corners[c][1]) / static_cast<float>(N);
+                vert.centerU = centerU;
+                vert.centerV = centerV;
                 vertices.push_back(vert);
             }
 
@@ -700,26 +716,61 @@ void VisualCanvas::renderOpenGL()
     int marginX = 0;
     int marginY = 0;
 
-    // Centering calculation: equal margins on both axes
-    if (availAspect > targetAspect)
+    if (isFullscreen)
     {
-        letterboxW = static_cast<int>(std::round(availableH * targetAspect));
-        marginX = (canvasW - letterboxW) / 2;
-        marginY = 0;
+        // TRUE FULLSCREEN: COVER SCALING
+        // Fills the ENTIRE screen without large black bars, cropping any overflow evenly on both sides.
+        // Centre of the visual aligns exactly with the centre of the screen horizontally and vertically.
+        if (availAspect > targetAspect)
+        {
+            letterboxW = canvasW;
+            letterboxH = static_cast<int>(std::round(canvasW / targetAspect));
+            marginX = 0;
+            marginY = (availableH - letterboxH) / 2; // Equal vertical cropping top and bottom
+        }
+        else
+        {
+            letterboxH = availableH;
+            letterboxW = static_cast<int>(std::round(availableH * targetAspect));
+            marginX = (canvasW - letterboxW) / 2; // Equal horizontal cropping left and right
+            marginY = 0;
+        }
     }
     else
     {
-        letterboxH = static_cast<int>(std::round(canvasW / targetAspect));
-        marginX = 0;
-        marginY = (availableH - letterboxH) / 2;
+        // WINDOWED MODE: FIT SCALING
+        // Centered horizontally and vertically within available canvas area with equal margins.
+        // Never anchored to bottom, top, or a corner.
+        if (availAspect > targetAspect)
+        {
+            letterboxW = static_cast<int>(std::round(availableH * targetAspect));
+            marginX = (canvasW - letterboxW) / 2;
+            marginY = 0;
+        }
+        else
+        {
+            letterboxH = static_cast<int>(std::round(canvasW / targetAspect));
+            marginX = 0;
+            marginY = (availableH - letterboxH) / 2;
+        }
     }
 
     const int letterboxX = marginX;
     const int letterboxY = statusBarHeight + marginY;
 
     // Ensure Ping-Pong FBOs match target preview resolution
-    const int targetFboW = std::clamp(letterboxW, 256, 1920);
-    const int targetFboH = std::clamp(letterboxH, 256, 1920);
+    int targetFboW = 1080;
+    int targetFboH = 1080;
+    if (currentPreviewAspect == PreviewAspect::Portrait1080x1920)
+    {
+        targetFboW = 1080;
+        targetFboH = 1920;
+    }
+    else if (currentPreviewAspect == PreviewAspect::Landscape1920x1080)
+    {
+        targetFboW = 1920;
+        targetFboH = 1080;
+    }
 
     if (fboPing == nullptr || fboPong == nullptr || fboWidth != targetFboW || fboHeight != targetFboH)
     {
@@ -727,8 +778,8 @@ void VisualCanvas::renderOpenGL()
         fboPong = std::make_unique<juce::OpenGLFrameBuffer>();
         fboPing->initialise(openGLContext, targetFboW, targetFboH);
         fboPong->initialise(openGLContext, targetFboW, targetFboH);
-        fboPing->clear(juce::Colour(0xff0a0d14));
-        fboPong->clear(juce::Colour(0xff0a0d14));
+        fboPing->clear(juce::Colours::black);
+        fboPong->clear(juce::Colours::black);
         fboWidth = targetFboW;
         fboHeight = targetFboH;
     }
@@ -738,6 +789,15 @@ void VisualCanvas::renderOpenGL()
     {
         std::lock_guard<std::mutex> lock(paramMutex);
         params = parameters;
+    }
+
+    // Dynamic Pixel Size mesh update: live adjustment from Pixel Size slider (3 - 12 px)
+    const int desiredGridRes = std::clamp(static_cast<int>(std::round(1080.0f / params.pixelSize)), 90, 360);
+    if (desiredGridRes != gridResolution || blockVbo == 0)
+    {
+        gridResolution = desiredGridRes;
+        currentPixelSize = params.pixelSize;
+        initBlockMesh();
     }
     const auto audioSnap = analysis.getSnapshot();
 
@@ -850,9 +910,10 @@ void VisualCanvas::renderOpenGL()
 
             const GLint blockCoordA = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_blockCoord");
             const GLint cornerA     = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_corner");
-            const GLint restUvA     = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_restUV");
+            const GLint cornerUvA   = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_cornerUV");
+            const GLint centerUvA   = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_centerUV");
 
-            constexpr int stride = 6 * sizeof(float);
+            constexpr int stride = 8 * sizeof(float);
 
             if (blockCoordA >= 0)
             {
@@ -864,17 +925,23 @@ void VisualCanvas::renderOpenGL()
                 openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(cornerA));
                 openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(cornerA), 2, GL_FLOAT, GL_FALSE, stride, (void*)(2 * sizeof(float)));
             }
-            if (restUvA >= 0)
+            if (cornerUvA >= 0)
             {
-                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(restUvA));
-                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(restUvA), 2, GL_FLOAT, GL_FALSE, stride, (void*)(4 * sizeof(float)));
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(cornerUvA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(cornerUvA), 2, GL_FLOAT, GL_FALSE, stride, (void*)(4 * sizeof(float)));
+            }
+            if (centerUvA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(centerUvA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(centerUvA), 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
             }
 
             glDrawElements(GL_TRIANGLES, blockCount * 6, GL_UNSIGNED_INT, 0);
 
             if (blockCoordA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(blockCoordA));
             if (cornerA >= 0)     openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(cornerA));
-            if (restUvA >= 0)     openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(restUvA));
+            if (cornerUvA >= 0)   openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(cornerUvA));
+            if (centerUvA >= 0)   openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(centerUvA));
 
             openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, 0);
             openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
