@@ -23,9 +23,15 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
         addAndMakeVisible(lbl);
     };
 
-    // 0. SCENE & LOOK
+    // 0. SCENE & LOOK (Pixel Melt & Scatter is default scene #1)
     setupHeader(sceneSection, "SCENE & GENERATIVE LOOK");
-    setupCombo(sceneGroup, "Active Scene", { "Smear (Pixel Melt)", "Ripple (Beat Wave)", "Flow (Liquid Swirl)", "Tiles (Kaleido Grid)" }, 1);
+    setupCombo(sceneGroup, "Active Scene", {
+        "Pixel Melt & Scatter (Reference)",
+        "Smear (Directional Melt)",
+        "Ripple (Beat Wave)",
+        "Flow (Liquid Swirl)",
+        "Tiles (Kaleido Grid)"
+    }, 1);
 
     randomizeButton.setButtonText("RANDOMIZE LOOK");
     randomizeButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff7928ca));
@@ -39,19 +45,21 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     setupHeader(colorSection,       "COLOR & LIGHT");
     setupHeader(geometrySection,    "GEOMETRY & OPTICS");
 
-    // 1. Dynamics
-    setupSlider(reactGroup,     "React",      0.0, 2.0, 1.00);
-    setupSlider(chaosGroup,     "Chaos",      0.0, 1.0, 0.20);
-    setupSlider(inputGainGroup, "Input Gain", 0.0, 3.0, 1.00);
+    // 1. Dynamics & Scatter
+    setupSlider(reactGroup,       "React",       0.0, 2.0, 1.00);
+    setupSlider(meltGroup,        "Melt",        0.0, 2.0, 1.00);
+    setupSlider(scatterGroup,     "Scatter",     0.0, 2.0, 1.00);
+    setupSlider(chaosGroup,       "Chaos",       0.0, 1.0, 0.25);
+    setupSlider(inputGainGroup,   "Input Gain",  0.0, 3.0, 1.00);
 
     // 2. Persistence
     setupSlider(trailsGroup, "Trails", 0.0, 0.98, 0.60);
     setupSlider(heatGroup,   "Heat",   0.0, 1.0,  0.30);
     setupSlider(decayGroup,  "Decay",  0.0, 1.0,  0.40);
 
-    // 3. Color & Light
+    // 3. Color & Light (Hue Drift defaults to 0.0 for original natural colors)
     setupSlider(brightnessGroup, "Brightness", 0.1, 2.0, 1.00);
-    setupSlider(hueDriftGroup,   "Hue Drift",   0.0, 1.0, 0.15);
+    setupSlider(hueDriftGroup,   "Hue Drift",   0.0, 1.0, 0.00);
     setupCombo(paletteGroup,     "Palette",    { "Prism Core", "Neon Ultraviolet", "Solar Flare", "Monochrome Ice", "Dark Floyd", "Custom" }, 1);
 
     // Custom Color Swatch button
@@ -60,7 +68,6 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     customColorButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
     customColorButton.onClick = [this]()
     {
-        // Cycle through vibrant custom designer hues
         static const juce::Colour paletteChoices[] = {
             juce::Colour(0xffff007f), // Hot Magenta
             juce::Colour(0xff00e5ff), // Electric Cyan
@@ -74,19 +81,19 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
         currentCustomColour = paletteChoices[colorIdx];
         customColorButton.setColour(juce::TextButton::buttonColourId, currentCustomColour);
 
-        paletteGroup.comboBox.setSelectedId(6, juce::dontSendNotification); // Select "Custom"
+        paletteGroup.comboBox.setSelectedId(6, juce::dontSendNotification);
         pushAllParametersToCanvas();
     };
     addAndMakeVisible(customColorButton);
 
     setupSlider(vignetteGroup,   "Vignette",    0.0, 1.0, 0.35);
 
-    // 4. Geometry & Optics
+    // 4. Geometry & Optics (Lens defaults to 0.0 for clean rest view)
     setupSlider(symmetryGroup,  "Symmetry",   1.0, 12.0, 1.0, 1.0);
     setupSlider(tilesGroup,     "Tiles",      1.0, 16.0, 1.0, 1.0);
     setupSlider(twistGroup,     "Twist",     -1.0,  1.0, 0.0);
     setupSlider(sliceGroup,     "Slice",      0.0,  1.0, 0.0);
-    setupSlider(lensGroup,      "Lens",       0.0,  1.0, 0.25);
+    setupSlider(lensGroup,      "Lens",       0.0,  1.0, 0.00);
     setupCombo(lensStyleGroup,  "Lens Style", { "Plain (Convex)", "Ribs (Fresnel Lines)", "Rings (Concentric)" }, 1);
 
     // Initial push of all parameters to canvas
@@ -147,10 +154,12 @@ void ParameterPanelContent::pushAllParametersToCanvas()
 
     // Scene
     const int sceneId = sceneGroup.comboBox.getSelectedId();
-    p.scene = static_cast<SceneType>(std::clamp(sceneId - 1, 0, 3));
+    p.scene = static_cast<SceneType>(std::clamp(sceneId - 1, 0, 4));
 
-    // Dynamics
+    // Dynamics & Scatter
     p.react = static_cast<float>(reactGroup.slider.getValue());
+    p.melt = static_cast<float>(meltGroup.slider.getValue());
+    p.scatter = static_cast<float>(scatterGroup.slider.getValue());
     p.chaos = static_cast<float>(chaosGroup.slider.getValue());
     p.inputGain = static_cast<float>(inputGainGroup.slider.getValue());
     analysis.setInputGain(p.inputGain);
@@ -185,18 +194,34 @@ void ParameterPanelContent::pushAllParametersToCanvas()
 
 void ParameterPanelContent::randomizeLook()
 {
-    // Randomize scene (1 to 4)
-    sceneGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 5)), juce::sendNotification);
+    // Randomize scene (1 to 5)
+    sceneGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 6)), juce::sendNotification);
+
+    const int currentSceneId = sceneGroup.comboBox.getSelectedId();
 
     // Safe artistic parameter ranges (never black, never broken)
-    reactGroup.slider.setValue(random.nextFloat() * 0.90f + 0.60f, juce::sendNotification);
-    chaosGroup.slider.setValue(random.nextFloat() * 0.35f + 0.10f, juce::sendNotification);
+    reactGroup.slider.setValue(random.nextFloat() * 0.80f + 0.60f, juce::sendNotification);
+    meltGroup.slider.setValue(random.nextFloat() * 0.80f + 0.60f, juce::sendNotification);
+    scatterGroup.slider.setValue(random.nextFloat() * 0.80f + 0.60f, juce::sendNotification);
+    chaosGroup.slider.setValue(random.nextFloat() * 0.35f + 0.15f, juce::sendNotification);
     trailsGroup.slider.setValue(random.nextFloat() * 0.35f + 0.45f, juce::sendNotification);
     heatGroup.slider.setValue(random.nextFloat() * 0.35f + 0.15f, juce::sendNotification);
     decayGroup.slider.setValue(random.nextFloat() * 0.30f + 0.25f, juce::sendNotification);
     brightnessGroup.slider.setValue(random.nextFloat() * 0.35f + 0.90f, juce::sendNotification); // 0.90 - 1.25
-    hueDriftGroup.slider.setValue(random.nextFloat() * 0.60f, juce::sendNotification);
     vignetteGroup.slider.setValue(random.nextFloat() * 0.35f + 0.20f, juce::sendNotification);
+
+    if (currentSceneId == 1) // Pixel Melt & Scatter: preserve natural colors
+    {
+        hueDriftGroup.slider.setValue(0.0, juce::sendNotification);
+        paletteGroup.comboBox.setSelectedId(1, juce::sendNotification); // Prism Core (Original)
+        lensGroup.slider.setValue(0.0, juce::sendNotification);
+    }
+    else
+    {
+        hueDriftGroup.slider.setValue(random.nextFloat() * 0.60f, juce::sendNotification);
+        paletteGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 6)), juce::sendNotification);
+        lensGroup.slider.setValue(random.nextFloat() * 0.35f + 0.10f, juce::sendNotification);
+    }
 
     const int symChoices[] = { 1, 2, 3, 4 };
     symmetryGroup.slider.setValue(symChoices[random.nextInt(4)], juce::sendNotification);
@@ -204,15 +229,10 @@ void ParameterPanelContent::randomizeLook()
     const int tileChoices[] = { 1, 2, 3 };
     tilesGroup.slider.setValue(tileChoices[random.nextInt(3)], juce::sendNotification);
 
-    twistGroup.slider.setValue((random.nextFloat() - 0.5f) * 0.70f, juce::sendNotification);
+    twistGroup.slider.setValue((random.nextFloat() - 0.5f) * 0.60f, juce::sendNotification);
     sliceGroup.slider.setValue(random.nextFloat() * 0.25f, juce::sendNotification);
-    lensGroup.slider.setValue(random.nextFloat() * 0.35f + 0.12f, juce::sendNotification);
 
-    // Randomize Lens Style (1 to 3: Plain, Ribs, Rings)
     lensStyleGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 4)), juce::sendNotification);
-
-    // Randomize Palette (1 to 5: Prism Core, Neon, Solar, Mono, Dark Floyd)
-    paletteGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 6)), juce::sendNotification);
 
     pushAllParametersToCanvas();
 }
@@ -263,9 +283,11 @@ void ParameterPanelContent::resized()
     randomizeButton.setBounds(x, y, panelWidth, 28);
     y += 28 + sectionSpacing;
 
-    // 1. DYNAMICS
+    // 1. DYNAMICS & SCATTER
     layoutSection(dynamicsSection);
     layoutSlider(reactGroup);
+    layoutSlider(meltGroup);
+    layoutSlider(scatterGroup);
     layoutSlider(chaosGroup);
     layoutSlider(inputGainGroup);
     y += sectionSpacing;
@@ -282,7 +304,6 @@ void ParameterPanelContent::resized()
     layoutSlider(brightnessGroup);
     layoutSlider(hueDriftGroup);
 
-    // Palette with custom color swatch
     paletteGroup.label.setBounds(x, y, 90, rowHeight);
     paletteGroup.comboBox.setBounds(x + 92, y, panelWidth - 92 - 60, rowHeight);
     customColorButton.setBounds(x + panelWidth - 54, y, 54, rowHeight);
@@ -325,7 +346,6 @@ void ParameterPanel::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xff14161d));
     g.fillRect(bounds);
 
-    // Left dividing border separating canvas from parameter panel
     g.setColour(juce::Colour(0xff232732));
     g.drawVerticalLine(0, 0.0f, static_cast<float>(bounds.getHeight()));
 }

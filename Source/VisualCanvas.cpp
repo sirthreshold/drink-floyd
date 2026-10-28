@@ -10,7 +10,7 @@ namespace drinkfloyd
 {
 
 // ==============================================================================
-// Vertex Shader (Common for Pass 1 & Pass 2)
+// Common Fullscreen Quad Vertex Shader
 // ==============================================================================
 static const char* commonVertexShader = R"(
     attribute vec2 aPosition;
@@ -25,7 +25,142 @@ static const char* commonVertexShader = R"(
 )";
 
 // ==============================================================================
-// Pass 1: Audio-Reactive Warp & Persistence Fragment Shader
+// Pixel Melt & Scatter Vertex Shader
+// ==============================================================================
+static const char* meltScatterVertexShader = R"(
+    attribute vec2 a_blockCoord;
+    attribute vec2 a_corner;
+    attribute vec2 a_restUV;
+
+    varying vec2 v_texCoord;
+
+    uniform float u_bass;
+    uniform float u_lowMid;
+    uniform float u_mid;
+    uniform float u_high;
+    uniform float u_beat;
+
+    uniform float u_react;
+    uniform float u_chaos;
+    uniform float u_melt;
+    uniform float u_scatter;
+    uniform float u_decay;
+    uniform float u_time;
+    uniform vec2  u_aspectScale;
+    uniform float u_blockSize;
+
+    // High performance deterministic hash
+    vec2 hash2(vec2 p)
+    {
+        vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+        p3 += dot(p3, p3.yzx + 33.33);
+        return fract((p3.xx + p3.yz) * p3.zy) * 2.0 - 1.0;
+    }
+
+    float hash1(vec2 p)
+    {
+        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+        p3 += dot(p3, p3.yzx + 33.33);
+        return fract((p3.x + p3.y) * p3.z);
+    }
+
+    void main()
+    {
+        v_texCoord = a_restUV;
+
+        // Base rest position in NDC [-1.0, 1.0]
+        vec2 restCenter = (a_restUV - vec2(0.5)) * 2.0;
+
+        // Block-specific random seeds
+        vec2 rndDir = hash2(a_blockCoord);
+        float rndVal1 = hash1(a_blockCoord * 1.618);
+        float rndVal2 = hash1(a_blockCoord * 3.1415 + vec2(7.1, 13.3));
+
+        // Audio force: strongly driven by bass energy and kick beats
+        float audioForce = (u_bass * 1.6 + u_beat * 2.0) * u_react;
+
+        // Activation threshold: staggered breakaway so blocks melt dynamically
+        float threshold = rndVal1 * 0.38;
+        float active = max(0.0, audioForce - threshold) * (1.0 + u_chaos * 1.25);
+
+        // 1. Melt Downward: gravity pulls blocks down with slight horizontal sway
+        float meltDist = active * (0.35 + 0.65 * rndVal2) * u_melt;
+        vec2 meltOffset = vec2(0.0, -meltDist);
+        meltOffset.x += sin(a_blockCoord.y * 0.15 + u_time * 2.0) * u_chaos * active * 0.15;
+
+        // 2. Scatter Outward: explodes randomly in all directions across canvas
+        float scatterDist = active * (0.22 + 0.78 * rndVal1) * u_scatter;
+        vec2 scatterOffset = rndDir * scatterDist;
+
+        // 3. Combined displacement
+        vec2 disp = meltOffset + scatterOffset;
+
+        // 4. Reform: When audio drops (silence), disp -> 0 automatically
+        if (active > 0.001)
+        {
+            disp *= clamp(1.0 - u_decay * 0.15, 0.1, 1.0);
+        }
+
+        vec2 blockCenter = restCenter + disp;
+
+        // Block scale & tumbling rotation
+        float blockScale = 1.0 + active * 0.20;
+        vec2 cornerOffset = a_corner * u_blockSize * blockScale;
+
+        float blockRot = active * (rndVal1 - 0.5) * 3.5 * (1.0 + u_mid * 2.0);
+        float cosR = cos(blockRot);
+        float sinR = sin(blockRot);
+        vec2 rotatedCorner = vec2(cornerOffset.x * cosR - cornerOffset.y * sinR,
+                                  cornerOffset.x * sinR + cornerOffset.y * cosR);
+
+        vec2 finalPos = blockCenter + rotatedCorner;
+        gl_Position = vec4(finalPos, 0.0, 1.0);
+    }
+)";
+
+// ==============================================================================
+// Pixel Melt & Scatter Fragment Shader (Samples Original Image Color)
+// ==============================================================================
+static const char* meltScatterFragmentShader = R"(
+    varying vec2 v_texCoord;
+
+    uniform sampler2D u_imageTexture;
+    uniform vec2 u_aspectScale;
+
+    void main()
+    {
+        // Map rest UV according to aspect scale (Fit vs Cover)
+        vec2 srcUv = (v_texCoord - vec2(0.5)) / u_aspectScale + vec2(0.5);
+
+        if (srcUv.x < 0.0 || srcUv.x > 1.0 || srcUv.y < 0.0 || srcUv.y > 1.0)
+        {
+            discard;
+        }
+
+        // Sample each block's ORIGINAL image color
+        gl_FragColor = texture2D(u_imageTexture, srcUv);
+    }
+)";
+
+// ==============================================================================
+// Trails Feedback Shader (Blends previous frame into FBO)
+// ==============================================================================
+static const char* trailsFeedbackFragmentShader = R"(
+    varying vec2 vTexCoord;
+    uniform sampler2D u_prevTexture;
+    uniform float u_trails;
+    uniform float u_decay;
+
+    void main()
+    {
+        vec4 prev = texture2D(u_prevTexture, vTexCoord);
+        float trailWeight = clamp(u_trails * (1.0 - u_decay * 0.45), 0.0, 0.96);
+        gl_FragColor = prev * trailWeight;
+    }
+)";
+
+// ==============================================================================
+// Generic Warp Shader (Pass 1 for Smear, Ripple, Flow, Tiles)
 // ==============================================================================
 static const char* warpFragmentShader = R"(
     varying vec2 vTexCoord;
@@ -33,15 +168,13 @@ static const char* warpFragmentShader = R"(
     uniform sampler2D u_imageTexture;
     uniform sampler2D u_prevTexture;
 
-    // Audio band uniforms
     uniform float u_bass;
     uniform float u_lowMid;
     uniform float u_mid;
     uniform float u_high;
     uniform float u_beat;
 
-    // Visual Parameters
-    uniform int   u_scene;      // 0=Smear, 1=Ripple, 2=Flow, 3=Tiles
+    uniform int   u_scene; // 1=Smear, 2=Ripple, 3=Flow, 4=Tiles
     uniform float u_react;
     uniform float u_chaos;
     uniform float u_trails;
@@ -52,11 +185,11 @@ static const char* warpFragmentShader = R"(
     uniform float u_twist;
     uniform float u_slice;
     uniform float u_lens;
-    uniform int   u_lensStyle;  // 0=Plain, 1=Ribs, 2=Rings
+    uniform int   u_lensStyle;
 
     uniform float u_time;
     uniform vec2  u_resolution;
-    uniform vec2  u_aspectScale; // For Fit vs Cover mapping: (sx, sy)
+    uniform vec2  u_aspectScale;
 
     vec2 rotateVec(vec2 v, float angle)
     {
@@ -70,22 +203,22 @@ static const char* warpFragmentShader = R"(
         vec2 uv = vTexCoord;
         vec2 p = uv - vec2(0.5);
 
-        // 1. Lens Distortion (Presets: Plain, Ribs, Rings)
+        // Lens
         float r = length(p);
         if (u_lens > 0.001)
         {
-            if (u_lensStyle == 0) // Plain: spherical convex / barrel
+            if (u_lensStyle == 0) // Plain
             {
                 float dist = r * (1.0 + u_lens * (r * r * 2.8 - 0.2));
                 if (r > 0.0001) p = (p / r) * dist;
             }
-            else if (u_lensStyle == 1) // Ribs: cylindrical fresnel fluting
+            else if (u_lensStyle == 1) // Ribs
             {
                 p.x += sin(p.y * 32.0 + u_time * 2.5) * 0.035 * u_lens * (1.0 + u_mid * u_react * 2.5);
                 float dist = r * (1.0 + u_lens * r * 0.85);
                 if (r > 0.0001) p = (p / r) * dist;
             }
-            else // Rings: concentric circular fresnel rings
+            else // Rings
             {
                 float ring = sin(r * 38.0 - u_time * 4.5) * 0.032 * u_lens * (1.0 + u_bass * u_react * 2.5);
                 float dist = r + ring;
@@ -94,7 +227,7 @@ static const char* warpFragmentShader = R"(
             r = length(p);
         }
 
-        // 2. Symmetry (Kaleidoscopic / Rotational folding)
+        // Symmetry
         if (u_symmetry > 1.05)
         {
             float numSegments = floor(u_symmetry);
@@ -105,20 +238,20 @@ static const char* warpFragmentShader = R"(
             p = vec2(cos(angle), sin(angle)) * r;
         }
 
-        // 3. Twist
+        // Twist
         if (abs(u_twist) > 0.001)
         {
             float twistAngle = u_twist * (1.0 - clamp(r * 1.5, 0.0, 1.0)) * 3.14159 * (1.0 + u_lowMid * u_react * 2.2);
             p = rotateVec(p, twistAngle);
         }
 
-        // 4. Tiles Grid
+        // Tiles
         if (u_tiles > 1.01)
         {
             p = fract(p * u_tiles + vec2(0.5)) - vec2(0.5);
         }
 
-        // 5. Slice (Horizontal raster strip shifts)
+        // Slice
         if (u_slice > 0.001)
         {
             float strip = floor((p.y + 0.5) * 16.0);
@@ -126,15 +259,15 @@ static const char* warpFragmentShader = R"(
             p.x += shift;
         }
 
-        // 6. Scene-Specific Per-Pixel Audio Reactive Warps
-        if (u_scene == 0) // SMEAR: Directional gravitational pixel melting & chromatic sliding
+        // Scene warps
+        if (u_scene == 1) // SMEAR
         {
             float meltNoise = sin(p.x * 24.0 + u_time * 2.5) * u_chaos * 0.05;
             float meltSpeed = (0.03 + u_bass * u_react * 0.16 + u_beat * u_react * 0.08) * (1.0 + meltNoise);
             p.y -= meltSpeed;
             p.x += sin(p.y * 14.0 + u_time * 1.2) * (0.012 + u_lowMid * u_react * 0.05);
         }
-        else if (u_scene == 1) // RIPPLE: Shockwave liquid ripples propagating outwards with beat
+        else if (u_scene == 2) // RIPPLE
         {
             float rippleFreq = 26.0 + u_mid * u_react * 16.0;
             float rippleAmp  = (0.035 + u_bass * u_react * 0.15 + u_beat * u_react * 0.12) * (1.0 + u_chaos * 0.85);
@@ -142,14 +275,14 @@ static const char* warpFragmentShader = R"(
             vec2 dir = (r > 0.0001) ? normalize(p) : vec2(0.0, 1.0);
             p += dir * wave;
         }
-        else if (u_scene == 2) // FLOW: Liquid advection / curl noise fluid swirl
+        else if (u_scene == 3) // FLOW
         {
             float t = u_time * 1.6;
             float vx = sin(p.y * 7.5 + t + u_bass * u_react * 4.5) + cos(p.x * 5.0 - t * 0.8) * u_chaos;
             float vy = cos(p.x * 7.5 - t + u_lowMid * u_react * 4.5) + sin(p.y * 5.0 + t * 0.8) * u_chaos;
             p += vec2(vx, vy) * (0.035 + u_react * 0.09);
         }
-        else if (u_scene == 3) // TILES: Dynamic mosaic permutation vibrating to audio bands
+        else if (u_scene == 4) // TILES
         {
             float gridSub = floor(1.0 + u_bass * u_react * 2.0);
             vec2 q = fract(p * gridSub + vec2(0.5)) - vec2(0.5);
@@ -157,13 +290,9 @@ static const char* warpFragmentShader = R"(
             p = mix(p, rotateVec(q, rot), 0.70);
         }
 
-        // Map back to UV coordinates [0, 1]
         vec2 warpUv = p + vec2(0.5);
-
-        // Aspect Ratio Scale mapping (Fit vs Cover)
         vec2 srcUv = (warpUv - vec2(0.5)) / u_aspectScale + vec2(0.5);
 
-        // Sample current source image
         vec4 currentCol;
         if (srcUv.x < 0.0 || srcUv.x > 1.0 || srcUv.y < 0.0 || srcUv.y > 1.0)
         {
@@ -174,26 +303,10 @@ static const char* warpFragmentShader = R"(
             currentCol = texture2D(u_imageTexture, srcUv);
         }
 
-        // Chromatic dispersion along audio transients
-        float dispersion = (u_bass * 0.016 + u_high * 0.014) * u_react;
-        if (dispersion > 0.001)
-        {
-            vec2 uvR = (warpUv - vec2(0.5) + vec2(dispersion, 0.0)) / u_aspectScale + vec2(0.5);
-            vec2 uvB = (warpUv - vec2(0.5) - vec2(dispersion, 0.0)) / u_aspectScale + vec2(0.5);
-            if (uvR.x >= 0.0 && uvR.x <= 1.0 && uvR.y >= 0.0 && uvR.y <= 1.0)
-                currentCol.r = texture2D(u_imageTexture, uvR).r;
-            if (uvB.x >= 0.0 && uvB.x <= 1.0 && uvB.y >= 0.0 && uvB.y <= 1.0)
-                currentCol.b = texture2D(u_imageTexture, uvB).b;
-        }
-
-        // Read previous frame from feedback texture
         vec4 prevCol = texture2D(u_prevTexture, uv);
-
-        // Persistence & Trails blend
         float trailWeight = clamp(u_trails * (1.0 - u_decay * 0.45), 0.0, 0.96);
         vec4 result = mix(currentCol, prevCol, trailWeight);
 
-        // Heat: Thermal glow injected into feedback on bass & beat peaks
         float heatEnergy = (u_bass * 0.75 + u_beat * 0.65) * u_react * u_heat;
         if (heatEnergy > 0.004)
         {
@@ -211,14 +324,15 @@ static const char* warpFragmentShader = R"(
 static const char* presentFragmentShader = R"(
     varying vec2 vTexCoord;
 
-    uniform sampler2D u_frameTexture; // From Pass 1 FBO
+    uniform sampler2D u_frameTexture;
 
     uniform float u_brightness;
     uniform float u_hueDrift;
-    uniform int   u_palette;      // 0=PrismCore, 1=NeonUltraviolet, 2=SolarFlare, 3=MonochromeIce, 4=DarkFloyd, 5=Custom
-    uniform vec3  u_customColour; // User chosen custom RGB
+    uniform int   u_palette;
+    uniform vec3  u_customColour;
     uniform float u_vignette;
     uniform float u_time;
+    uniform int   u_isPixelMelt; // 1 if Pixel Melt & Scatter, 0 otherwise
 
     vec3 rotateHue(vec3 col, float angle)
     {
@@ -232,60 +346,62 @@ static const char* presentFragmentShader = R"(
         vec2 uv = vTexCoord;
         vec4 col = texture2D(u_frameTexture, uv);
 
-        // 1. Hue Drift
-        if (abs(u_hueDrift) > 0.001)
+        // For Pixel Melt & Scatter: preserve original colors by default (no hue shift or palette unless requested)
+        if (u_isPixelMelt == 0 || abs(u_hueDrift) > 0.001)
         {
-            col.rgb = rotateHue(col.rgb, u_hueDrift * 6.2831853);
+            if (abs(u_hueDrift) > 0.001)
+                col.rgb = rotateHue(col.rgb, u_hueDrift * 6.2831853);
         }
 
-        // 2. Palette Presets (Maps luminance across distinct psychedelic gradients)
-        float lum = clamp(dot(col.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+        // Palette presets (bypassed if Pixel Melt & Scatter and palette is PrismCore)
+        if (u_palette > 0 || u_isPixelMelt == 0)
+        {
+            float lum = clamp(dot(col.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
 
-        if (u_palette == 1) // Neon Ultraviolet: deep violet -> hot magenta -> neon cyan
-        {
-            vec3 c0 = vec3(0.08, 0.02, 0.22);
-            vec3 c1 = vec3(0.92, 0.05, 0.55);
-            vec3 c2 = vec3(0.0, 0.95, 0.95);
-            vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-            col.rgb = mix(col.rgb, pal, 0.75);
-        }
-        else if (u_palette == 2) // Solar Flare: obsidian black -> deep ruby -> burning amber -> white hot
-        {
-            vec3 c0 = vec3(0.05, 0.01, 0.01);
-            vec3 c1 = vec3(0.85, 0.12, 0.05);
-            vec3 c2 = vec3(1.0, 0.85, 0.2);
-            vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-            col.rgb = mix(col.rgb, pal, 0.80);
-        }
-        else if (u_palette == 3) // Monochrome Ice: dark navy -> frosted cyan -> silver white
-        {
-            vec3 c0 = vec3(0.04, 0.08, 0.15);
-            vec3 c1 = vec3(0.25, 0.65, 0.85);
-            vec3 c2 = vec3(0.92, 0.96, 1.0);
-            vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-            col.rgb = mix(col.rgb, pal, 0.85);
-        }
-        else if (u_palette == 4) // Dark Floyd: pitch black -> emerald forest -> electric spectrum
-        {
-            vec3 c0 = vec3(0.02, 0.04, 0.03);
-            vec3 c1 = vec3(0.0, 0.85, 0.45);
-            vec3 c2 = vec3(0.95, 0.85, 0.15);
-            vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-            col.rgb = mix(col.rgb, pal, 0.75);
-        }
-        else if (u_palette == 5) // Custom Palette: gradients through user selected customColour
-        {
-            vec3 c0 = vec3(0.02, 0.02, 0.03);
-            vec3 c1 = u_customColour;
-            vec3 c2 = vec3(1.0, 1.0, 1.0);
-            vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-            col.rgb = mix(col.rgb, pal, 0.80);
+            if (u_palette == 1) // Neon Ultraviolet
+            {
+                vec3 c0 = vec3(0.08, 0.02, 0.22);
+                vec3 c1 = vec3(0.92, 0.05, 0.55);
+                vec3 c2 = vec3(0.0, 0.95, 0.95);
+                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
+                col.rgb = mix(col.rgb, pal, 0.75);
+            }
+            else if (u_palette == 2) // Solar Flare
+            {
+                vec3 c0 = vec3(0.05, 0.01, 0.01);
+                vec3 c1 = vec3(0.85, 0.12, 0.05);
+                vec3 c2 = vec3(1.0, 0.85, 0.2);
+                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
+                col.rgb = mix(col.rgb, pal, 0.80);
+            }
+            else if (u_palette == 3) // Monochrome Ice
+            {
+                vec3 c0 = vec3(0.04, 0.08, 0.15);
+                vec3 c1 = vec3(0.25, 0.65, 0.85);
+                vec3 c2 = vec3(0.92, 0.96, 1.0);
+                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
+                col.rgb = mix(col.rgb, pal, 0.85);
+            }
+            else if (u_palette == 4) // Dark Floyd
+            {
+                vec3 c0 = vec3(0.02, 0.04, 0.03);
+                vec3 c1 = vec3(0.0, 0.85, 0.45);
+                vec3 c2 = vec3(0.95, 0.85, 0.15);
+                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
+                col.rgb = mix(col.rgb, pal, 0.75);
+            }
+            else if (u_palette == 5) // Custom
+            {
+                vec3 c0 = vec3(0.02, 0.02, 0.03);
+                vec3 c1 = u_customColour;
+                vec3 c2 = vec3(1.0, 1.0, 1.0);
+                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
+                col.rgb = mix(col.rgb, pal, 0.80);
+            }
         }
 
-        // 3. Brightness
         col.rgb *= u_brightness;
 
-        // 4. Vignette
         if (u_vignette > 0.001)
         {
             float d = length(uv - vec2(0.5)) * 1.4142;
@@ -307,7 +423,6 @@ VisualCanvas::VisualCanvas(HeaderBar& headerBar, AudioAnalysisEngine& analysisEn
 {
     setOpaque(true);
 
-    // Setup OpenGL context: continuous repainting for true 60 FPS GPU rendering
     openGLContext.setComponentPaintingEnabled(true);
     openGLContext.setContinuousRepainting(true);
     openGLContext.setRenderer(this);
@@ -345,12 +460,26 @@ void VisualCanvas::setPreviewAspect(PreviewAspect aspect)
     repaint();
 }
 
+void VisualCanvas::setFullscreen(bool fs)
+{
+    isFullscreen = fs;
+    repaint();
+}
+
+void VisualCanvas::mouseDoubleClick(const juce::MouseEvent& e)
+{
+    juce::ignoreUnused(e);
+    if (onToggleFullscreen)
+        onToggleFullscreen();
+}
+
 // ==============================================================================
-// OpenGL Context Management
+// OpenGL Context Management & Block Mesh
 // ==============================================================================
 void VisualCanvas::newOpenGLContextCreated()
 {
     initShaders();
+    initBlockMesh();
 
     // Create default procedural Floyd test image pattern
     juce::Image defaultImg(juce::Image::ARGB, 512, 512, true);
@@ -358,7 +487,6 @@ void VisualCanvas::newOpenGLContextCreated()
         juce::Graphics g(defaultImg);
         g.fillAll(juce::Colour(0xff0d1117));
 
-        // Prism rainbow gradient circle
         juce::ColourGradient grad(juce::Colour(0xff00b4d8), 256.0f, 256.0f,
                                   juce::Colour(0xffff007f), 480.0f, 480.0f, true);
         grad.addColour(0.3, juce::Colour(0xff7928ca));
@@ -370,7 +498,6 @@ void VisualCanvas::newOpenGLContextCreated()
         g.setColour(juce::Colour(0xff0a0d14));
         g.fillEllipse(128.0f, 128.0f, 256.0f, 256.0f);
 
-        // Core prism triangle
         juce::Path triangle;
         triangle.addTriangle(256.0f, 160.0f, 170.0f, 330.0f, 342.0f, 330.0f);
         g.setColour(juce::Colours::white);
@@ -382,8 +509,11 @@ void VisualCanvas::newOpenGLContextCreated()
 void VisualCanvas::openGLContextClosing()
 {
     warpShader.reset();
+    meltScatterShader.reset();
+    trailsFeedbackShader.reset();
     presentShader.reset();
     releaseFBOs();
+    releaseBlockMesh();
     sourceTexture.release();
     defaultPatternTexture.release();
 }
@@ -396,9 +526,92 @@ void VisualCanvas::releaseFBOs()
     fboHeight = 0;
 }
 
+void VisualCanvas::initBlockMesh()
+{
+    releaseBlockMesh();
+
+    struct BlockVertex
+    {
+        float blockCoordX, blockCoordY;
+        float cornerX, cornerY;
+        float restU, restV;
+    };
+
+    const int N = gridResolution;
+    blockCount = N * N;
+    std::vector<BlockVertex> vertices;
+    vertices.reserve(blockCount * 4);
+    std::vector<GLuint> indices;
+    indices.reserve(blockCount * 6);
+
+    const float corners[4][2] = {
+        { -0.5f, -0.5f },
+        {  0.5f, -0.5f },
+        {  0.5f,  0.5f },
+        { -0.5f,  0.5f }
+    };
+
+    GLuint baseVertex = 0;
+    for (int y = 0; y < N; ++y)
+    {
+        for (int x = 0; x < N; ++x)
+        {
+            const float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(N);
+            const float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(N);
+
+            for (int c = 0; c < 4; ++c)
+            {
+                BlockVertex vert;
+                vert.blockCoordX = static_cast<float>(x);
+                vert.blockCoordY = static_cast<float>(y);
+                vert.cornerX = corners[c][0];
+                vert.cornerY = corners[c][1];
+                vert.restU = u;
+                vert.restV = v;
+                vertices.push_back(vert);
+            }
+
+            indices.push_back(baseVertex + 0);
+            indices.push_back(baseVertex + 1);
+            indices.push_back(baseVertex + 2);
+            indices.push_back(baseVertex + 0);
+            indices.push_back(baseVertex + 2);
+            indices.push_back(baseVertex + 3);
+
+            baseVertex += 4;
+        }
+    }
+
+    openGLContext.extensions.glGenBuffers(1, &blockVbo);
+    openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, blockVbo);
+    openGLContext.extensions.glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertices.size() * sizeof(BlockVertex)), vertices.data(), GL_STATIC_DRAW);
+
+    openGLContext.extensions.glGenBuffers(1, &blockIbo);
+    openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, blockIbo);
+    openGLContext.extensions.glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<GLsizeiptr>(indices.size() * sizeof(GLuint)), indices.data(), GL_STATIC_DRAW);
+
+    openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, 0);
+    openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+void VisualCanvas::releaseBlockMesh()
+{
+    if (blockVbo != 0)
+    {
+        openGLContext.extensions.glDeleteBuffers(1, &blockVbo);
+        blockVbo = 0;
+    }
+    if (blockIbo != 0)
+    {
+        openGLContext.extensions.glDeleteBuffers(1, &blockIbo);
+        blockIbo = 0;
+    }
+    blockCount = 0;
+}
+
 void VisualCanvas::initShaders()
 {
-    // Pass 1: Warp Shader
+    // 1. Generic Warp Shader (Smear, Ripple, Flow, Tiles)
     warpShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     if (!warpShader->addVertexShader(commonVertexShader) ||
         !warpShader->addFragmentShader(warpFragmentShader) ||
@@ -407,7 +620,25 @@ void VisualCanvas::initShaders()
         DBG("Warp shader error: " + warpShader->getLastError());
     }
 
-    // Pass 2: Present Shader
+    // 2. Pixel Melt & Scatter Shader
+    meltScatterShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
+    if (!meltScatterShader->addVertexShader(meltScatterVertexShader) ||
+        !meltScatterShader->addFragmentShader(meltScatterFragmentShader) ||
+        !meltScatterShader->link())
+    {
+        DBG("Melt & Scatter shader error: " + meltScatterShader->getLastError());
+    }
+
+    // 3. Trails Feedback Shader
+    trailsFeedbackShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
+    if (!trailsFeedbackShader->addVertexShader(commonVertexShader) ||
+        !trailsFeedbackShader->addFragmentShader(trailsFeedbackFragmentShader) ||
+        !trailsFeedbackShader->link())
+    {
+        DBG("Trails shader error: " + trailsFeedbackShader->getLastError());
+    }
+
+    // 4. Presentation Shader
     presentShader = std::make_unique<juce::OpenGLShaderProgram>(openGLContext);
     if (!presentShader->addVertexShader(commonVertexShader) ||
         !presentShader->addFragmentShader(presentFragmentShader) ||
@@ -449,36 +680,42 @@ void VisualCanvas::renderOpenGL()
     const auto bounds = getLocalBounds();
     const int canvasW = bounds.getWidth();
     const int canvasH = bounds.getHeight();
-    constexpr int statusBarHeight = 28;
-    const int viewportH = std::max(1, canvasH - statusBarHeight);
+    const int statusBarHeight = isFullscreen ? 0 : 28;
+    const int availableH = std::max(1, canvasH - statusBarHeight);
 
-    if (canvasW <= 0 || viewportH <= 0)
+    if (canvasW <= 0 || availableH <= 0)
         return;
 
-    // Determine preview aspect ratio & letterbox viewport
-    float targetAspect = 1.0f; // 1080x1080 by default (1:1)
+    // Determine preview aspect ratio: 1080x1080 (1:1), 1080x1920 (9:16), 1920x1080 (16:9)
+    float targetAspect = 1.0f;
     if (currentPreviewAspect == PreviewAspect::Portrait1080x1920)
-        targetAspect = 1080.0f / 1920.0f; // 9:16 (~0.5625)
+        targetAspect = 1080.0f / 1920.0f;
     else if (currentPreviewAspect == PreviewAspect::Landscape1920x1080)
-        targetAspect = 1920.0f / 1080.0f; // 16:9 (~1.7778)
+        targetAspect = 1920.0f / 1080.0f;
 
-    const float canvasAspect = static_cast<float>(canvasW) / static_cast<float>(viewportH);
+    const float availAspect = static_cast<float>(canvasW) / static_cast<float>(availableH);
 
     int letterboxW = canvasW;
-    int letterboxH = viewportH;
-    int letterboxX = 0;
-    int letterboxY = statusBarHeight;
+    int letterboxH = availableH;
+    int marginX = 0;
+    int marginY = 0;
 
-    if (canvasAspect > targetAspect)
+    // Centering calculation: equal margins on both axes
+    if (availAspect > targetAspect)
     {
-        letterboxW = static_cast<int>(viewportH * targetAspect);
-        letterboxX = (canvasW - letterboxW) / 2;
+        letterboxW = static_cast<int>(std::round(availableH * targetAspect));
+        marginX = (canvasW - letterboxW) / 2;
+        marginY = 0;
     }
     else
     {
-        letterboxH = static_cast<int>(canvasW / targetAspect);
-        letterboxY = statusBarHeight + (viewportH - letterboxH) / 2;
+        letterboxH = static_cast<int>(std::round(canvasW / targetAspect));
+        marginX = 0;
+        marginY = (availableH - letterboxH) / 2;
     }
+
+    const int letterboxX = marginX;
+    const int letterboxY = statusBarHeight + marginY;
 
     // Ensure Ping-Pong FBOs match target preview resolution
     const int targetFboW = std::clamp(letterboxW, 256, 1920);
@@ -539,99 +776,194 @@ void VisualCanvas::renderOpenGL()
     };
 
     // ==========================================================================
-    // PASS 1: Render Reactive Warp & Persistence into fboPing
+    // PASS 1: Render Active Scene into fboPing
     // ==========================================================================
-    if (warpShader != nullptr && fboPing != nullptr && fboPong != nullptr)
+    fboPing->makeCurrentRenderingTarget();
+    glViewport(0, 0, fboWidth, fboHeight);
+
+    if (params.scene == SceneType::PixelMeltScatter)
     {
-        fboPing->makeCurrentRenderingTarget();
-        glViewport(0, 0, fboWidth, fboHeight);
-
-        warpShader->use();
-
-        // Texture Unit 0: Source Image / Procedural Pattern
-        glActiveTexture(GL_TEXTURE0);
-        if (hasImage.load())
-            sourceTexture.bind();
-        else
-            defaultPatternTexture.bind();
-        warpShader->setUniform("u_imageTexture", 0);
-
-        // Texture Unit 1: Feedback from previous frame (fboPong)
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, fboPong->getTextureID());
-        warpShader->setUniform("u_prevTexture", 1);
-
-        // Audio Uniforms
-        warpShader->setUniform("u_bass",   audioSnap.bands.bass);
-        warpShader->setUniform("u_lowMid", audioSnap.bands.lowMid);
-        warpShader->setUniform("u_mid",    audioSnap.bands.mid);
-        warpShader->setUniform("u_high",   audioSnap.bands.high);
-        warpShader->setUniform("u_beat",   audioSnap.bands.beat);
-
-        // Parameters
-        warpShader->setUniform("u_scene",     static_cast<int>(params.scene));
-        warpShader->setUniform("u_react",     params.react);
-        warpShader->setUniform("u_chaos",     params.chaos);
-        warpShader->setUniform("u_trails",    params.trails);
-        warpShader->setUniform("u_heat",      params.heat);
-        warpShader->setUniform("u_decay",     params.decay);
-        warpShader->setUniform("u_symmetry",  params.symmetry);
-        warpShader->setUniform("u_tiles",     params.tiles);
-        warpShader->setUniform("u_twist",     params.twist);
-        warpShader->setUniform("u_slice",     params.slice);
-        warpShader->setUniform("u_lens",      params.lens);
-        warpShader->setUniform("u_lensStyle", static_cast<int>(params.lensStyle));
-
-        warpShader->setUniform("u_time",        timeSec);
-        warpShader->setUniform("u_resolution",  static_cast<float>(fboWidth), static_cast<float>(fboHeight));
-        warpShader->setUniform("u_aspectScale", sx, sy);
-
-        // Draw quad into FBO
-        const GLint posA = openGLContext.extensions.glGetAttribLocation(warpShader->getProgramID(), "aPosition");
-        const GLint texA = openGLContext.extensions.glGetAttribLocation(warpShader->getProgramID(), "aTexCoord");
-
-        if (posA >= 0)
+        // 1a. Trails Feedback Pass: Blend previous frame dimmed by trails & decay
+        if (trailsFeedbackShader != nullptr)
         {
-            openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(posA));
-            openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(posA), 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex), &fboQuad[0].x);
-        }
-        if (texA >= 0)
-        {
-            openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(texA));
-            openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(texA), 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex), &fboQuad[0].u);
+            trailsFeedbackShader->use();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, fboPong->getTextureID());
+            trailsFeedbackShader->setUniform("u_prevTexture", 0);
+            trailsFeedbackShader->setUniform("u_trails", params.trails);
+            trailsFeedbackShader->setUniform("u_decay",  params.decay);
+
+            const GLint posA = openGLContext.extensions.glGetAttribLocation(trailsFeedbackShader->getProgramID(), "aPosition");
+            const GLint texA = openGLContext.extensions.glGetAttribLocation(trailsFeedbackShader->getProgramID(), "aTexCoord");
+
+            if (posA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(posA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(posA), 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex), &fboQuad[0].x);
+            }
+            if (texA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(texA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(texA), 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex), &fboQuad[0].u);
+            }
+
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+            if (posA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(posA));
+            if (texA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(texA));
         }
 
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        // 1b. Render Pixel Melt & Scatter Blocks on top
+        if (meltScatterShader != nullptr && blockVbo != 0 && blockIbo != 0)
+        {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        if (posA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(posA));
-        if (texA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(texA));
+            meltScatterShader->use();
 
-        fboPing->releaseAsRenderingTarget();
+            glActiveTexture(GL_TEXTURE0);
+            if (hasImage.load())
+                sourceTexture.bind();
+            else
+                defaultPatternTexture.bind();
+            meltScatterShader->setUniform("u_imageTexture", 0);
+
+            meltScatterShader->setUniform("u_bass",        audioSnap.bands.bass);
+            meltScatterShader->setUniform("u_lowMid",      audioSnap.bands.lowMid);
+            meltScatterShader->setUniform("u_mid",         audioSnap.bands.mid);
+            meltScatterShader->setUniform("u_high",        audioSnap.bands.high);
+            meltScatterShader->setUniform("u_beat",        audioSnap.bands.beat);
+
+            meltScatterShader->setUniform("u_react",       params.react);
+            meltScatterShader->setUniform("u_chaos",       params.chaos);
+            meltScatterShader->setUniform("u_melt",        params.melt);
+            meltScatterShader->setUniform("u_scatter",     params.scatter);
+            meltScatterShader->setUniform("u_decay",       params.decay);
+            meltScatterShader->setUniform("u_time",        timeSec);
+            meltScatterShader->setUniform("u_aspectScale", sx, sy);
+
+            const float blockSize = 2.0f / static_cast<float>(gridResolution);
+            meltScatterShader->setUniform("u_blockSize",   blockSize);
+
+            openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, blockVbo);
+            openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, blockIbo);
+
+            const GLint blockCoordA = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_blockCoord");
+            const GLint cornerA     = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_corner");
+            const GLint restUvA     = openGLContext.extensions.glGetAttribLocation(meltScatterShader->getProgramID(), "a_restUV");
+
+            constexpr int stride = 6 * sizeof(float);
+
+            if (blockCoordA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(blockCoordA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(blockCoordA), 2, GL_FLOAT, GL_FALSE, stride, (void*)0);
+            }
+            if (cornerA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(cornerA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(cornerA), 2, GL_FLOAT, GL_FALSE, stride, (void*)(2 * sizeof(float)));
+            }
+            if (restUvA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(restUvA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(restUvA), 2, GL_FLOAT, GL_FALSE, stride, (void*)(4 * sizeof(float)));
+            }
+
+            glDrawElements(GL_TRIANGLES, blockCount * 6, GL_UNSIGNED_INT, 0);
+
+            if (blockCoordA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(blockCoordA));
+            if (cornerA >= 0)     openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(cornerA));
+            if (restUvA >= 0)     openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(restUvA));
+
+            openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, 0);
+            openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+            glDisable(GL_BLEND);
+        }
+    }
+    else // Generic Warp Shader (Smear, Ripple, Flow, Tiles)
+    {
+        if (warpShader != nullptr)
+        {
+            warpShader->use();
+
+            glActiveTexture(GL_TEXTURE0);
+            if (hasImage.load())
+                sourceTexture.bind();
+            else
+                defaultPatternTexture.bind();
+            warpShader->setUniform("u_imageTexture", 0);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, fboPong->getTextureID());
+            warpShader->setUniform("u_prevTexture", 1);
+
+            warpShader->setUniform("u_bass",   audioSnap.bands.bass);
+            warpShader->setUniform("u_lowMid", audioSnap.bands.lowMid);
+            warpShader->setUniform("u_mid",    audioSnap.bands.mid);
+            warpShader->setUniform("u_high",   audioSnap.bands.high);
+            warpShader->setUniform("u_beat",   audioSnap.bands.beat);
+
+            warpShader->setUniform("u_scene",     static_cast<int>(params.scene));
+            warpShader->setUniform("u_react",     params.react);
+            warpShader->setUniform("u_chaos",     params.chaos);
+            warpShader->setUniform("u_trails",    params.trails);
+            warpShader->setUniform("u_heat",      params.heat);
+            warpShader->setUniform("u_decay",     params.decay);
+            warpShader->setUniform("u_symmetry",  params.symmetry);
+            warpShader->setUniform("u_tiles",     params.tiles);
+            warpShader->setUniform("u_twist",     params.twist);
+            warpShader->setUniform("u_slice",     params.slice);
+            warpShader->setUniform("u_lens",      params.lens);
+            warpShader->setUniform("u_lensStyle", static_cast<int>(params.lensStyle));
+
+            warpShader->setUniform("u_time",        timeSec);
+            warpShader->setUniform("u_resolution",  static_cast<float>(fboWidth), static_cast<float>(fboHeight));
+            warpShader->setUniform("u_aspectScale", sx, sy);
+
+            const GLint posA = openGLContext.extensions.glGetAttribLocation(warpShader->getProgramID(), "aPosition");
+            const GLint texA = openGLContext.extensions.glGetAttribLocation(warpShader->getProgramID(), "aTexCoord");
+
+            if (posA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(posA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(posA), 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex), &fboQuad[0].x);
+            }
+            if (texA >= 0)
+            {
+                openGLContext.extensions.glEnableVertexAttribArray(static_cast<GLuint>(texA));
+                openGLContext.extensions.glVertexAttribPointer(static_cast<GLuint>(texA), 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex), &fboQuad[0].u);
+            }
+
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+            if (posA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(posA));
+            if (texA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(texA));
+        }
     }
 
+    fboPing->releaseAsRenderingTarget();
+
     // ==========================================================================
-    // PASS 2: Canvas Presentation, Palette & Vignette to Viewport
+    // PASS 2: Canvas Presentation to Centered Viewport
     // ==========================================================================
     if (presentShader != nullptr && fboPing != nullptr)
     {
-        // Bind default screen framebuffer and viewport
+        // 1. Clear outer screen background with even letterbox bars
         glViewport(0, 0, canvasW, canvasH);
-
-        // Clear entire canvas background to sleek dark tone
-        glClearColor(0.05f, 0.06f, 0.08f, 1.0f);
+        glClearColor(0.04f, 0.05f, 0.07f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Set letterbox viewport
+        // 2. Set centered letterbox viewport with equal margins
         glViewport(letterboxX, letterboxY, letterboxW, letterboxH);
 
         presentShader->use();
 
-        // Texture Unit 0: Result from Pass 1
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fboPing->getTextureID());
         presentShader->setUniform("u_frameTexture", 0);
 
-        // Parameters
         presentShader->setUniform("u_brightness", params.brightness);
         presentShader->setUniform("u_hueDrift",   params.hueDrift);
         presentShader->setUniform("u_palette",    static_cast<int>(params.palette));
@@ -641,8 +973,9 @@ void VisualCanvas::renderOpenGL()
         const float cb = params.customColour.getFloatBlue();
         presentShader->setUniform("u_customColour", cr, cg, cb);
 
-        presentShader->setUniform("u_vignette", params.vignette);
-        presentShader->setUniform("u_time",     timeSec);
+        presentShader->setUniform("u_vignette",    params.vignette);
+        presentShader->setUniform("u_time",        timeSec);
+        presentShader->setUniform("u_isPixelMelt", (params.scene == SceneType::PixelMeltScatter) ? 1 : 0);
 
         const GLint posA = openGLContext.extensions.glGetAttribLocation(presentShader->getProgramID(), "aPosition");
         const GLint texA = openGLContext.extensions.glGetAttribLocation(presentShader->getProgramID(), "aTexCoord");
@@ -664,7 +997,7 @@ void VisualCanvas::renderOpenGL()
         if (texA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(texA));
     }
 
-    // Swap Ping-Pong Framebuffers for the next frame
+    // Swap Ping-Pong Framebuffers for next frame feedback
     std::swap(fboPing, fboPong);
 }
 
@@ -673,49 +1006,34 @@ void VisualCanvas::renderOpenGL()
 // ==============================================================================
 void VisualCanvas::paint(juce::Graphics& g)
 {
+    if (isFullscreen)
+        return; // In fullscreen: pure visual canvas, no UI overlays
+
     const auto bounds = getLocalBounds();
     const int w = bounds.getWidth();
     constexpr int statusBarHeight = 28;
-
-    // Viewport area above the bottom status bar
     const auto viewportArea = bounds.withTrimmedBottom(statusBarHeight);
 
-    // Placeholder hint if no custom image loaded
-    if (!hasImage.load())
-    {
-        // Drag over active image
-        if (isDragOver)
-        {
-            g.setColour(juce::Colour(0x5000b4d8));
-            g.fillRect(viewportArea);
-            g.setColour(juce::Colour(0xff00b4d8));
-            g.drawRect(viewportArea, 3);
-            g.setFont(juce::FontOptions(18.0f, juce::Font::bold));
-            g.drawText("RELEASE TO IMPORT IMAGE", viewportArea, juce::Justification::centred, false);
-        }
-    }
-    else if (isDragOver)
+    if (isDragOver)
     {
         g.setColour(juce::Colour(0x5000b4d8));
         g.fillRect(viewportArea);
         g.setColour(juce::Colour(0xff00b4d8));
         g.drawRect(viewportArea, 3);
         g.setFont(juce::FontOptions(18.0f, juce::Font::bold));
-        g.drawText("RELEASE TO REPLACE IMAGE", viewportArea, juce::Justification::centred, false);
+        g.drawText(hasImage.load() ? "RELEASE TO REPLACE IMAGE" : "RELEASE TO IMPORT IMAGE",
+                   viewportArea, juce::Justification::centred, false);
     }
 
-    // Bottom Status Line (always present)
+    // Bottom Status Line
     const auto statusArea = juce::Rectangle<int>(0, bounds.getBottom() - statusBarHeight, w, statusBarHeight);
 
-    // Dark sleek background
     g.setColour(juce::Colour(0xff10131a));
     g.fillRect(statusArea);
 
-    // Top hairline divider
     g.setColour(juce::Colour(0xff232732));
     g.drawHorizontalLine(statusArea.getY(), 0.0f, static_cast<float>(w));
 
-    // Status text
     if (isStatusError)
         g.setColour(juce::Colour(0xffff9966));
     else if (hasImage.load())

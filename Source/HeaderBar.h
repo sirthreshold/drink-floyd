@@ -28,6 +28,7 @@ public:
     std::function<void()> onPasteImage;
     std::function<void()> onToggleScaleMode;
     std::function<void(int)> onAspectChanged;
+    std::function<void()> onToggleFullscreen;
 
 private:
     void timerCallback() override;
@@ -38,6 +39,7 @@ private:
     juce::TextButton openButton;
     juce::TextButton pasteButton;
     juce::TextButton scaleModeButton;
+    juce::TextButton fullscreenButton;
 
     // Output Preview Aspect Selectors
     juce::TextButton resSquareButton;    // 1080x1080 (1:1)

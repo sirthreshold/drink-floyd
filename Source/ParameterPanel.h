@@ -56,8 +56,10 @@ private:
     juce::Label colorSection;
     juce::Label geometrySection;
 
-    // 16 Canonical Visualizer Parameters
+    // Dynamics & Scatter Parameters
     SliderGroup reactGroup;       // react
+    SliderGroup meltGroup;        // melt (gravity displacement)
+    SliderGroup scatterGroup;     // scatter (radial explosion)
     SliderGroup chaosGroup;       // chaos
     SliderGroup inputGainGroup;   // input gain
     SliderGroup trailsGroup;      // trails

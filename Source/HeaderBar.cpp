@@ -55,6 +55,14 @@ HeaderBar::HeaderBar(AudioAnalysisEngine& analysisEngine)
     scaleModeButton.onClick = [this]() { if (onToggleScaleMode) onToggleScaleMode(); };
     addAndMakeVisible(scaleModeButton);
 
+    // Fullscreen Button
+    fullscreenButton.setButtonText("Fullscreen");
+    fullscreenButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff222a38));
+    fullscreenButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff333e52));
+    fullscreenButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffd5dbe5));
+    fullscreenButton.onClick = [this]() { if (onToggleFullscreen) onToggleFullscreen(); };
+    addAndMakeVisible(fullscreenButton);
+
     // Target Output Resolution profiles (1080x1080 / 1080x1920 / 1920x1080)
     auto setupAspectBtn = [this](juce::TextButton& btn, const juce::String& text, int idx)
     {
@@ -193,12 +201,16 @@ void HeaderBar::resized()
 
     // Center output resolution preview buttons
     const int resBtnW = 75;
-    int curX = scaleModeButton.getRight() + 14;
+    int curX = scaleModeButton.getRight() + 10;
     resSquareButton.setBounds(curX, bounds.getY() + 2, resBtnW, bounds.getHeight() - 4);
     curX += resBtnW + 4;
     resPortraitButton.setBounds(curX, bounds.getY() + 2, resBtnW, bounds.getHeight() - 4);
     curX += resBtnW + 4;
     resLandscapeButton.setBounds(curX, bounds.getY() + 2, resBtnW, bounds.getHeight() - 4);
+    curX += resBtnW + 6;
+
+    // Fullscreen Button
+    fullscreenButton.setBounds(curX, bounds.getY() + 2, 78, bounds.getHeight() - 4);
 }
 
 } // namespace drinkfloyd

@@ -220,3 +220,37 @@ target_link_libraries(RenderBenchmarkTest PRIVATE
     gdi32
     mmdevapi
 )
+
+# Test Runner Executable (Visual Melt & Scatter Verification)
+add_executable(VisualMeltVerificationTest
+    Tests/VisualMeltVerificationTest.cpp
+    Source/VisualCanvas.h
+    Source/VisualCanvas.cpp
+    Source/HeaderBar.h
+    Source/HeaderBar.cpp
+    Source/AudioAnalysisEngine.h
+    Source/AudioAnalysisEngine.cpp
+    Source/ImageLoader.h
+    Source/ImageLoader.cpp
+    Source/VisualParameters.h
+    Source/AudioTypes.h
+)
+
+target_compile_definitions(VisualMeltVerificationTest PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+)
+
+target_link_libraries(VisualMeltVerificationTest PRIVATE
+    juce::juce_gui_extra
+    juce::juce_opengl
+    juce::juce_recommended_config_flags
+    juce::juce_recommended_warning_flags
+    windowscodecs
+    ole32
+    user32
+    gdi32
+    mmdevapi
+)

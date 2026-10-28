@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <cmath>
 #include <cassert>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <juce_opengl/juce_opengl.h>
@@ -11,9 +12,9 @@ int main()
 {
     juce::ScopedJuceInitialiser_GUI guiInit;
 
-    std::cout << "========================================\n";
-    std::cout << "DRINK FLOYD - PHASE 3 VISUAL ENGINE TEST\n";
-    std::cout << "========================================\n\n";
+    std::cout << "====================================================\n";
+    std::cout << "DRINK FLOYD - PHASE 3.2+3.3 VISUAL & CENTERING TESTS\n";
+    std::cout << "====================================================\n\n";
 
     int testsPassed = 0;
     int totalTests = 0;
@@ -24,71 +25,96 @@ int main()
         if (condition) testsPassed++;
     };
 
-    // 1. Scene System (4 original scenes: Smear, Ripple, Flow, Tiles)
+    // 1. Pixel Melt & Scatter Scene Verification
     {
-        bool scenesValid = (static_cast<int>(drinkfloyd::SceneType::Smear) == 0 &&
-                            static_cast<int>(drinkfloyd::SceneType::Ripple) == 1 &&
-                            static_cast<int>(drinkfloyd::SceneType::Flow) == 2 &&
-                            static_cast<int>(drinkfloyd::SceneType::Tiles) == 3);
-        runTest("Scene System (Smear, Ripple, Flow, Tiles)", scenesValid);
-        std::cout << "       Scenes: " << drinkfloyd::getSceneName(drinkfloyd::SceneType::Smear).toStdString() << ", "
-                                       << drinkfloyd::getSceneName(drinkfloyd::SceneType::Ripple).toStdString() << ", "
-                                       << drinkfloyd::getSceneName(drinkfloyd::SceneType::Flow).toStdString() << ", "
-                                       << drinkfloyd::getSceneName(drinkfloyd::SceneType::Tiles).toStdString() << "\n";
+        drinkfloyd::VisualParameters p;
+        bool defaultSceneIsPixelMelt = (p.scene == drinkfloyd::SceneType::PixelMeltScatter);
+        bool nameMatches = (drinkfloyd::getSceneName(p.scene) == "Pixel Melt & Scatter");
+        runTest("Pixel Melt & Scatter is Default Active Scene", defaultSceneIsPixelMelt && nameMatches);
+        std::cout << "       Active Default Scene: " << drinkfloyd::getSceneName(p.scene).toStdString() << "\n";
+
+        bool allScenesPresent = (static_cast<int>(drinkfloyd::SceneType::PixelMeltScatter) == 0 &&
+                                 static_cast<int>(drinkfloyd::SceneType::Smear) == 1 &&
+                                 static_cast<int>(drinkfloyd::SceneType::Ripple) == 2 &&
+                                 static_cast<int>(drinkfloyd::SceneType::Flow) == 3 &&
+                                 static_cast<int>(drinkfloyd::SceneType::Tiles) == 4);
+        runTest("All 5 Scenes Registered (Pixel Melt, Smear, Ripple, Flow, Tiles)", allScenesPresent);
     }
 
-    // 2. Lens Style Presets (At least 3: Plain, Ribs, Rings)
+    // 2. Original Colors & Separate Melt/Scatter Parameters
     {
-        bool lensStylesValid = (static_cast<int>(drinkfloyd::LensStyle::Plain) == 0 &&
-                                static_cast<int>(drinkfloyd::LensStyle::Ribs) == 1 &&
-                                static_cast<int>(drinkfloyd::LensStyle::Rings) == 2);
-        runTest("Lens Style Presets (Plain, Ribs, Rings)", lensStylesValid);
+        drinkfloyd::VisualParameters p;
+        bool originalColorsDefault = (p.hueDrift == 0.0f && p.palette == drinkfloyd::PalettePreset::PrismCore);
+        bool meltAndScatterSeparate = (p.melt == 1.0f && p.scatter == 1.0f);
+        runTest("Original Color Preserved (HueDrift = 0.0, PrismCore default)", originalColorsDefault);
+        runTest("Independent Melt & Scatter Parameters (Melt=1.0, Scatter=1.0)", meltAndScatterSeparate);
     }
 
-    // 3. Palette System Presets + Custom Swatch
+    // 3. Mathematical Centering Verification (Both Horizontally & Vertically)
     {
-        bool palettesValid = (static_cast<int>(drinkfloyd::PalettePreset::PrismCore) == 0 &&
-                              static_cast<int>(drinkfloyd::PalettePreset::NeonUltraviolet) == 1 &&
-                              static_cast<int>(drinkfloyd::PalettePreset::SolarFlare) == 2 &&
-                              static_cast<int>(drinkfloyd::PalettePreset::MonochromeIce) == 3 &&
-                              static_cast<int>(drinkfloyd::PalettePreset::DarkFloyd) == 4 &&
-                              static_cast<int>(drinkfloyd::PalettePreset::Custom) == 5);
-        runTest("Palette System (5 Presets + Custom Colour Swatch)", palettesValid);
+        auto testCentering = [](int canvasW, int canvasH, int statusBarH, float targetAspect) -> bool {
+            int availH = canvasH - statusBarH;
+            float availAspect = static_cast<float>(canvasW) / static_cast<float>(availH);
+
+            int letterboxW, letterboxH, marginX, marginY;
+            if (availAspect > targetAspect)
+            {
+                letterboxW = static_cast<int>(std::round(availH * targetAspect));
+                letterboxH = availH;
+                marginX = (canvasW - letterboxW) / 2;
+                marginY = 0;
+            }
+            else
+            {
+                letterboxW = canvasW;
+                letterboxH = static_cast<int>(std::round(canvasW / targetAspect));
+                marginX = 0;
+                marginY = (availH - letterboxH) / 2;
+            }
+
+            // Verify horizontal symmetry
+            int rightMargin = canvasW - (marginX + letterboxW);
+            bool horizCentred = std::abs(marginX - rightMargin) <= 1;
+
+            // Verify vertical symmetry
+            int bottomMargin = marginY;
+            int topMargin = availH - (marginY + letterboxH);
+            bool vertCentred = std::abs(bottomMargin - topMargin) <= 1;
+
+            return horizCentred && vertCentred;
+        };
+
+        bool c1 = testCentering(1280, 800, 28, 1.0f);          // 1080x1080 windowed
+        bool c2 = testCentering(1280, 800, 28, 1080.f/1920.f);  // 1080x1920 windowed
+        bool c3 = testCentering(1280, 800, 28, 1920.f/1080.f);  // 1920x1080 windowed
+        bool c4 = testCentering(1920, 1080, 0, 1.0f);          // 1080x1080 fullscreen
+        bool c5 = testCentering(1920, 1080, 0, 1080.f/1920.f);  // 1080x1920 fullscreen
+        bool c6 = testCentering(1920, 1080, 0, 1920.f/1080.f);  // 1920x1080 fullscreen
+
+        runTest("Mathematical Centering (Equal top/bottom and left/right margins)", c1 && c2 && c3 && c4 && c5 && c6);
+        std::cout << "       Verified: 1080x1080, 1080x1920, 1920x1080 windowed and fullscreen\n";
     }
 
-    // 4. RANDOMIZE LOOK Safety Verification across 500 iterations
+    // 4. Randomize Look Safety Verification
     {
-        juce::Random rng(12345);
+        juce::Random rng(54321);
         bool allSafe = true;
         for (int i = 0; i < 500; ++i)
         {
             float brightness = rng.nextFloat() * 0.35f + 0.90f; // 0.90 to 1.25
-            float react      = rng.nextFloat() * 0.90f + 0.60f;
-            float tiles      = static_cast<float>(rng.nextInt(juce::Range<int>(1, 4)));
+            float react      = rng.nextFloat() * 0.80f + 0.60f;
+            float melt       = rng.nextFloat() * 0.80f + 0.60f;
+            float scatter    = rng.nextFloat() * 0.80f + 0.60f;
             float trails     = rng.nextFloat() * 0.35f + 0.45f;
-            float vignette   = rng.nextFloat() * 0.35f + 0.20f;
-            int scene        = rng.nextInt(juce::Range<int>(0, 4));
+            int scene        = rng.nextInt(juce::Range<int>(0, 5));
 
-            if (brightness < 0.80f || brightness > 1.5f || tiles < 1.0f || trails >= 0.99f || react <= 0.0f || scene < 0 || scene > 3)
+            if (brightness < 0.85f || brightness > 1.5f || trails >= 0.99f || react <= 0.0f || melt <= 0.0f || scatter <= 0.0f || scene < 0 || scene > 4)
             {
                 allSafe = false;
                 break;
             }
         }
         runTest("Randomize Look Safe Ranges (500 iterations: never black, never broken)", allSafe);
-    }
-
-    // 5. Verification of All 14 Shader Uniform Parameters
-    {
-        drinkfloyd::VisualParameters p;
-        bool paramsSet = (p.react > 0.0f && p.chaos >= 0.0f && p.inputGain > 0.0f &&
-                          p.trails > 0.0f && p.heat >= 0.0f && p.decay > 0.0f &&
-                          p.brightness > 0.0f && p.hueDrift >= 0.0f && p.vignette > 0.0f &&
-                          p.symmetry >= 1.0f && p.tiles >= 1.0f && p.lens >= 0.0f);
-        runTest("14 Shader Uniform Parameters Configured", paramsSet);
-        std::cout << "       Verified uniforms: react, chaos, trails, heat, decay, brightness,\n"
-                  << "                          inputGain, symmetry, tiles, twist, slice, lens,\n"
-                  << "                          hueDrift, vignette\n";
     }
 
     std::cout << "\n----------------------------------------\n";

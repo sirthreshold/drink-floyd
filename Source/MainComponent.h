@@ -22,6 +22,9 @@ public:
 
     bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
 
+    void toggleFullscreen();
+    void exitFullscreen();
+
 private:
     // Audio capture & analysis engines
     AudioAnalysisEngine audioAnalysisEngine;
@@ -31,6 +34,9 @@ private:
     HeaderBar      headerBar;
     VisualCanvas   visualCanvas;
     ParameterPanel parameterPanel;
+
+    bool isFullscreen = false;
+    juce::Rectangle<int> savedWindowBounds;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

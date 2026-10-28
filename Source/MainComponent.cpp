@@ -37,10 +37,20 @@ MainComponent::MainComponent()
         else if (idx == 2) visualCanvas.setPreviewAspect(PreviewAspect::Landscape1920x1080);
     };
 
+    headerBar.onToggleFullscreen = [this]()
+    {
+        toggleFullscreen();
+    };
+
+    visualCanvas.onToggleFullscreen = [this]()
+    {
+        toggleFullscreen();
+    };
+
     // Start background WASAPI system audio loopback capture
     audioCaptureEngine.start();
 
-    // Keyboard shortcuts (Ctrl+V paste, Ctrl+O open)
+    // Keyboard shortcuts (Ctrl+V, Ctrl+O, F11, F, Esc)
     addKeyListener(this);
     setWantsKeyboardFocus(true);
 
@@ -53,9 +63,69 @@ MainComponent::~MainComponent()
     removeKeyListener(this);
 }
 
+void MainComponent::toggleFullscreen()
+{
+    auto* topLevel = getTopLevelComponent();
+    if (auto* dw = dynamic_cast<juce::DocumentWindow*>(topLevel))
+    {
+        isFullscreen = !isFullscreen;
+        if (isFullscreen)
+        {
+            savedWindowBounds = dw->getBounds();
+            headerBar.setVisible(false);
+            parameterPanel.setVisible(false);
+            visualCanvas.setFullscreen(true);
+            dw->setFullScreen(true);
+        }
+        else
+        {
+            dw->setFullScreen(false);
+            if (!savedWindowBounds.isEmpty())
+                dw->setBounds(savedWindowBounds);
+            headerBar.setVisible(true);
+            parameterPanel.setVisible(true);
+            visualCanvas.setFullscreen(false);
+        }
+        resized();
+    }
+}
+
+void MainComponent::exitFullscreen()
+{
+    if (isFullscreen)
+    {
+        toggleFullscreen();
+    }
+}
+
 bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* /*originatingComponent*/)
 {
-    if (key.getModifiers().isCommandDown()) // Ctrl on Windows
+    // Esc: exit fullscreen
+    if (key.isKeyCode(juce::KeyPress::escapeKey))
+    {
+        if (isFullscreen)
+        {
+            exitFullscreen();
+            return true;
+        }
+    }
+
+    // F11: toggle fullscreen
+    if (key.isKeyCode(juce::KeyPress::F11Key))
+    {
+        toggleFullscreen();
+        return true;
+    }
+
+    // F: toggle fullscreen (when no modifiers pressed)
+    if (!key.getModifiers().isAnyModifierKeyDown() && (key.getTextCharacter() == 'f' || key.getTextCharacter() == 'F'))
+    {
+        toggleFullscreen();
+        return true;
+    }
+
+    // Ctrl shortcuts
+    if (key.getModifiers().isCommandDown())
     {
         if (key.getKeyCode() == 'V' || key.getKeyCode() == 'v')
         {
@@ -82,14 +152,21 @@ void MainComponent::resized()
 {
     auto area = getLocalBounds();
 
-    // Top Header: 46px height
-    headerBar.setBounds(area.removeFromTop(46));
+    if (isFullscreen)
+    {
+        visualCanvas.setBounds(area);
+    }
+    else
+    {
+        // Top Header: 46px height
+        headerBar.setBounds(area.removeFromTop(46));
 
-    // Right Sidebar (Parameter Panel): fixed 320px width
-    parameterPanel.setBounds(area.removeFromRight(320));
+        // Right Sidebar (Parameter Panel): fixed 320px width
+        parameterPanel.setBounds(area.removeFromRight(320));
 
-    // Remaining area: Visual Canvas
-    visualCanvas.setBounds(area);
+        // Remaining area: Visual Canvas (centered letterbox within this area)
+        visualCanvas.setBounds(area);
+    }
 }
 
 } // namespace drinkfloyd

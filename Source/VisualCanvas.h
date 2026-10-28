@@ -5,6 +5,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <vector>
 #include "ImageLoader.h"
 #include "VisualParameters.h"
 
@@ -39,6 +40,7 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseDoubleClick(const juce::MouseEvent& e) override;
 
     // OpenGLRenderer callbacks
     void newOpenGLContextCreated() override;
@@ -66,13 +68,20 @@ public:
     VisualParameters getParameters() const;
     void setScene(SceneType scene);
 
+    void setFullscreen(bool fs);
+    bool getFullscreen() const noexcept { return isFullscreen; }
+
     bool hasLoadedImage() const noexcept { return hasImage; }
     juce::String getStatusText() const { return currentStatusText; }
+
+    std::function<void()> onToggleFullscreen;
 
 private:
     void onImageLoaded(const ImageImportResult& result);
     void initShaders();
     void releaseFBOs();
+    void initBlockMesh();
+    void releaseBlockMesh();
 
     HeaderBar& header;
     AudioAnalysisEngine& analysis;
@@ -88,9 +97,17 @@ private:
     int fboWidth = 0;
     int fboHeight = 0;
 
-    // Dual-Pass Shader Programs
+    // Shader Programs
     std::unique_ptr<juce::OpenGLShaderProgram> warpShader;
+    std::unique_ptr<juce::OpenGLShaderProgram> meltScatterShader;
+    std::unique_ptr<juce::OpenGLShaderProgram> trailsFeedbackShader;
     std::unique_ptr<juce::OpenGLShaderProgram> presentShader;
+
+    // Block Mesh VBO/IBO for Pixel Melt & Scatter
+    GLuint blockVbo = 0;
+    GLuint blockIbo = 0;
+    int blockCount = 0;
+    int gridResolution = 100; // 100x100 = 10,000 discrete blocks
 
     // Visual Parameters
     mutable std::mutex paramMutex;
@@ -105,6 +122,7 @@ private:
     // Display & State
     ScaleMode currentScaleMode = ScaleMode::Fit;
     PreviewAspect currentPreviewAspect = PreviewAspect::Square1080x1080;
+    bool isFullscreen = false;
     bool isDragOver = false;
     bool isLoading = false;
     int imageWidth = 0;
