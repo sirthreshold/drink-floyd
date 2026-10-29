@@ -25,7 +25,7 @@ static const char* commonVertexShader = R"(
 )";
 
 // ==============================================================================
-// Pixel Melt & Scatter Vertex Shader
+// Pixel Melt & Scatter / Sand Canvas Disperse Vertex Shader
 // ==============================================================================
 static const char* meltScatterVertexShader = R"(
     attribute vec2 a_blockCoord;
@@ -34,6 +34,7 @@ static const char* meltScatterVertexShader = R"(
     attribute vec2 a_centerUV;
 
     varying vec2 v_texCoord;
+    varying float v_active;
 
     uniform float u_bass;
     uniform float u_lowMid;
@@ -49,6 +50,7 @@ static const char* meltScatterVertexShader = R"(
     uniform float u_time;
     uniform vec2  u_aspectScale;
     uniform float u_blockSize;
+    uniform int   u_isSandScatter;
 
     // High performance deterministic hash
     vec2 hash2(vec2 p)
@@ -76,30 +78,65 @@ static const char* meltScatterVertexShader = R"(
         float rndVal2 = hash1(a_blockCoord * 3.1415 + vec2(7.1, 13.3));
 
         // Audio force: driven by bass, beat transients, and mid punch
-        float audioForce = (u_bass * 1.4 + u_beat * 1.2 + u_lowMid * 0.4) * u_react;
+        float audioForce = (u_bass * 1.5 + u_beat * 1.3 + u_lowMid * 0.5) * u_react;
 
         // Activation threshold: staggered breakaway so blocks melt dynamically
-        float threshold = rndVal1 * 0.35;
-        float active = max(0.0, audioForce - threshold) * (1.0 + u_chaos * 0.8);
+        float threshold = rndVal1 * 0.30;
+        float active = max(0.0, audioForce - threshold) * (1.0 + u_chaos * 0.85);
         active = clamp(active, 0.0, 1.0);
+        v_active = active;
 
-        // 1. Melt Downward: gravity pulls blocks down with slight horizontal sway
-        float meltDist = active * (0.10 + 0.35 * rndVal2) * u_melt;
-        vec2 meltOffset = vec2((rndVal1 - 0.5) * 0.25 * u_chaos * active, -meltDist);
+        vec2 disp = vec2(0.0);
+        float blockScale = 1.0;
 
-        // 2. Scatter Outward: explodes radially in random stable direction
-        float scatterDist = active * (0.05 + 0.22 * rndVal1) * u_scatter * (0.35 + 0.65 * u_chaos);
-        vec2 scatterOffset = rndDir * scatterDist;
+        if (u_isSandScatter == 1)
+        {
+            // --- SAND MELT & CANVAS SCATTER (Wide Full-Canvas Disperse) ---
+            // 1. Long downward gravitational melt covering the full canvas
+            float meltDist = active * (0.35 + 1.25 * rndVal2) * u_melt;
+            float meltSway = sin(u_time * 2.2 + a_blockCoord.y * 0.12 + rndVal1 * 6.28) * 0.40 * u_chaos * active;
+            vec2 meltOffset = vec2(meltSway, -meltDist);
 
-        // 3. Combined displacement
-        vec2 disp = meltOffset + scatterOffset;
+            // 2. Wide explosive canvas-wide scatter in all directions across the entire canvas
+            float scatterDist = active * (0.45 + 1.45 * rndVal1) * u_scatter * (0.60 + 0.90 * u_chaos);
+            vec2 scatterOffset = rndDir * scatterDist;
 
-        // 4. Cap displacement to maintain visual coherence (shapes/faces stay clustered)
-        float maxDisp = 0.45 * (u_react * 0.70 + 0.30);
-        if (length(disp) > maxDisp)
-            disp = normalize(disp) * maxDisp;
+            // 3. Fluid curl swirl across canvas over time with the beat
+            float swirlAng = u_time * (1.2 + u_bass * 1.8) + length(restCenter) * 2.5 + rndVal2 * 3.14;
+            vec2 swirlOffset = vec2(cos(swirlAng), sin(swirlAng)) * active * 0.35 * u_chaos;
 
-        // 5. Reform: When audio drops (silence / decay), disp -> 0 smoothly
+            disp = meltOffset + scatterOffset + swirlOffset;
+
+            // Wide canvas displacement cap: allows travel across full canvas (up to 2.4 NDC units)
+            float maxDisp = 2.4 * (u_react * 0.60 + 0.40);
+            if (length(disp) > maxDisp)
+                disp = normalize(disp) * maxDisp;
+
+            // Sand grain separation: grains shrink slightly into discrete sand particles as they scatter
+            blockScale = mix(1.0, 0.65 + 0.25 * rndVal1, active);
+        }
+        else
+        {
+            // --- REFERENCE PIXEL MELT & SCATTER ---
+            // 1. Melt Downward
+            float meltDist = active * (0.20 + 0.60 * rndVal2) * u_melt;
+            vec2 meltOffset = vec2((rndVal1 - 0.5) * 0.35 * u_chaos * active, -meltDist);
+
+            // 2. Scatter Outward
+            float scatterDist = active * (0.12 + 0.45 * rndVal1) * u_scatter * (0.45 + 0.75 * u_chaos);
+            vec2 scatterOffset = rndDir * scatterDist;
+
+            disp = meltOffset + scatterOffset;
+
+            // Displacement capped around origin
+            float maxDisp = 0.90 * (u_react * 0.70 + 0.30);
+            if (length(disp) > maxDisp)
+                disp = normalize(disp) * maxDisp;
+
+            blockScale = 1.0 + active * 0.12;
+        }
+
+        // Reform: When audio drops (silence / decay), disp -> 0 smoothly
         if (active > 0.001)
         {
             disp *= clamp(1.0 - u_decay * 0.20, 0.05, 1.0);
@@ -111,8 +148,6 @@ static const char* meltScatterVertexShader = R"(
 
         vec2 blockCenter = restCenter + disp;
 
-        // Block scale & tumbling rotation
-        float blockScale = 1.0 + active * 0.15;
         vec2 cornerOffset = a_corner * u_blockSize * blockScale * u_aspectScale;
 
         // Stable rotation angle (proportional to displacement / active, stable direction)
@@ -132,13 +167,14 @@ static const char* meltScatterVertexShader = R"(
 )";
 
 // ==============================================================================
-// Pixel Melt & Scatter Fragment Shader (Samples Original Image Color)
+// Pixel Melt & Scatter / Sand Fragment Shader (Samples Original Image Color)
 // ==============================================================================
 static const char* meltScatterFragmentShader = R"(
     varying vec2 v_texCoord;
+    varying float v_active;
 
     uniform sampler2D u_imageTexture;
-    uniform vec2 u_aspectScale;
+    uniform int u_isSandScatter;
 
     void main()
     {
@@ -147,8 +183,12 @@ static const char* meltScatterFragmentShader = R"(
             discard;
         }
 
-        // Sample each block's ORIGINAL image color
-        gl_FragColor = texture2D(u_imageTexture, v_texCoord);
+        vec4 col = texture2D(u_imageTexture, v_texCoord);
+        if (u_isSandScatter == 1)
+        {
+            col.rgb *= (0.95 + 0.15 * v_active);
+        }
+        gl_FragColor = col;
     }
 )";
 
@@ -158,15 +198,30 @@ static const char* meltScatterFragmentShader = R"(
 static const char* trailsFeedbackFragmentShader = R"(
     varying vec2 vTexCoord;
     uniform sampler2D u_prevTexture;
+    uniform sampler2D u_imageTexture;
     uniform float u_trails;
     uniform float u_decay;
+    uniform int u_isSandScatter;
+    uniform vec2 u_aspectScale;
 
     void main()
     {
         vec4 prev = texture2D(u_prevTexture, vTexCoord);
-        // Melt streaks fade out gracefully governed by Trails and Decay
         float trailWeight = clamp(u_trails * (1.0 - u_decay * 0.50), 0.0, 0.92);
-        gl_FragColor = prev * trailWeight;
+        vec4 result = prev * trailWeight;
+
+        if (u_isSandScatter == 1)
+        {
+            // Base image partially visible (dimmed) through dispersing sand pixels
+            vec2 srcUv = (vTexCoord - vec2(0.5)) / u_aspectScale + vec2(0.5);
+            if (srcUv.x >= 0.0 && srcUv.x <= 1.0 && srcUv.y >= 0.0 && srcUv.y <= 1.0)
+            {
+                vec4 baseImg = texture2D(u_imageTexture, srcUv);
+                result = mix(result, baseImg * 0.28, 0.35);
+            }
+        }
+
+        gl_FragColor = result;
     }
 )";
 
@@ -931,8 +986,8 @@ void VisualCanvas::renderOpenGL()
         params = parameters;
     }
 
-    // Dynamic Pixel Size mesh update: live adjustment from Pixel Size slider (3 - 12 px)
-    const int desiredGridRes = std::clamp(static_cast<int>(std::round(1080.0f / params.pixelSize)), 90, 360);
+    // Dynamic Pixel Size mesh update: live adjustment from Pixel Size slider (0.5 - 12 px)
+    const int desiredGridRes = std::clamp(static_cast<int>(std::round(1080.0f / std::max(1.5f, params.pixelSize))), 90, 480);
     if (desiredGridRes != gridResolution || blockVbo == 0)
     {
         gridResolution = desiredGridRes;
@@ -989,23 +1044,38 @@ void VisualCanvas::renderOpenGL()
         {  1.0f,  1.0f, 1.0f, 1.0f }
     };
 
+    const bool isSandScene = (params.scene == SceneType::SandCanvasScatter);
+    const bool isBlockScene = (params.scene == SceneType::PixelMeltScatter || isSandScene);
+
     // ==========================================================================
     // PASS 1: Render Active Scene into fboPing
     // ==========================================================================
     fboPing->makeCurrentRenderingTarget();
     glViewport(0, 0, fboWidth, fboHeight);
 
-    if (params.scene == SceneType::PixelMeltScatter)
+    if (isBlockScene)
     {
         // 1a. Trails Feedback Pass: Blend previous frame dimmed by trails & decay
+        // When Sand Canvas Scatter is active, blends a subtle base image layer so the artwork
+        // remains partially visible through the dispersing swarm of sand pixels!
         if (trailsFeedbackShader != nullptr)
         {
             trailsFeedbackShader->use();
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, fboPong->getTextureID());
             trailsFeedbackShader->setUniform("u_prevTexture", 0);
-            trailsFeedbackShader->setUniform("u_trails", params.trails);
-            trailsFeedbackShader->setUniform("u_decay",  params.decay);
+
+            glActiveTexture(GL_TEXTURE1);
+            if (hasImage.load())
+                sourceTexture.bind();
+            else
+                defaultPatternTexture.bind();
+            trailsFeedbackShader->setUniform("u_imageTexture", 1);
+
+            trailsFeedbackShader->setUniform("u_trails",        params.trails);
+            trailsFeedbackShader->setUniform("u_decay",         params.decay);
+            trailsFeedbackShader->setUniform("u_isSandScatter", isSandScene ? 1 : 0);
+            trailsFeedbackShader->setUniform("u_aspectScale",   sx, sy);
 
             const GLint posA = openGLContext.extensions.glGetAttribLocation(trailsFeedbackShader->getProgramID(), "aPosition");
             const GLint texA = openGLContext.extensions.glGetAttribLocation(trailsFeedbackShader->getProgramID(), "aTexCoord");
@@ -1027,7 +1097,7 @@ void VisualCanvas::renderOpenGL()
             if (texA >= 0) openGLContext.extensions.glDisableVertexAttribArray(static_cast<GLuint>(texA));
         }
 
-        // 1b. Render Pixel Melt & Scatter Blocks on top
+        // 1b. Render Pixel Melt & Scatter / Sand Blocks on top
         if (meltScatterShader != nullptr && blockVbo != 0 && blockIbo != 0)
         {
             glEnable(GL_BLEND);
@@ -1048,16 +1118,18 @@ void VisualCanvas::renderOpenGL()
             meltScatterShader->setUniform("u_high",        audioSnap.bands.high);
             meltScatterShader->setUniform("u_beat",        audioSnap.bands.beat);
 
-            meltScatterShader->setUniform("u_react",       params.react);
-            meltScatterShader->setUniform("u_chaos",       params.chaos);
-            meltScatterShader->setUniform("u_melt",        params.melt);
-            meltScatterShader->setUniform("u_scatter",     params.scatter);
-            meltScatterShader->setUniform("u_decay",       params.decay);
-            meltScatterShader->setUniform("u_time",        timeSec);
-            meltScatterShader->setUniform("u_aspectScale", sx, sy);
+            meltScatterShader->setUniform("u_react",         params.react);
+            meltScatterShader->setUniform("u_chaos",         params.chaos);
+            meltScatterShader->setUniform("u_melt",          params.melt);
+            meltScatterShader->setUniform("u_scatter",       params.scatter);
+            meltScatterShader->setUniform("u_decay",         params.decay);
+            meltScatterShader->setUniform("u_time",          timeSec);
+            meltScatterShader->setUniform("u_aspectScale",   sx, sy);
+            meltScatterShader->setUniform("u_isSandScatter", isSandScene ? 1 : 0);
 
-            const float blockSize = 2.0f / static_cast<float>(gridResolution);
-            meltScatterShader->setUniform("u_blockSize",   blockSize);
+            // Block size in NDC coordinates: (pixelSize / 1080) * 2
+            const float blockSize = (params.pixelSize / 1080.0f) * 2.0f;
+            meltScatterShader->setUniform("u_blockSize",     blockSize);
 
             openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, blockVbo);
             openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, blockIbo);
@@ -1196,7 +1268,7 @@ void VisualCanvas::renderOpenGL()
 
         presentShader->setUniform("u_vignette",    params.vignette);
         presentShader->setUniform("u_time",        timeSec);
-        presentShader->setUniform("u_isPixelMelt", (params.scene == SceneType::PixelMeltScatter) ? 1 : 0);
+        presentShader->setUniform("u_isPixelMelt", isBlockScene ? 1 : 0);
 
         const GLint posA = openGLContext.extensions.glGetAttribLocation(presentShader->getProgramID(), "aPosition");
         const GLint texA = openGLContext.extensions.glGetAttribLocation(presentShader->getProgramID(), "aTexCoord");

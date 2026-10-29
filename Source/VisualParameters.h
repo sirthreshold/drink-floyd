@@ -27,34 +27,36 @@ enum class SceneType : int
     Mosh = 17,            // Datamosh macroblock motion glitch
     Sort = 18,            // Directional luminance pixel sorting
     Coral = 19,           // Organic reaction-diffusion branching curl
-    Scanline = 20         // Retro CRT scanlines & phosphor warp
+    Scanline = 20,        // Retro CRT scanlines & phosphor warp
+    SandCanvasScatter = 21 // Wide canvas sand melt & full disperse (partial image reveal)
 };
 
 inline juce::String getSceneName(SceneType scene)
 {
     switch (scene)
     {
-        case SceneType::PixelMeltScatter: return "Pixel Melt & Scatter";
-        case SceneType::Smear:            return "Smear";
-        case SceneType::Ripple:           return "Ripple";
-        case SceneType::Flow:             return "Flow";
-        case SceneType::Tiles:            return "Tiles";
-        case SceneType::None:             return "None";
-        case SceneType::Droste:           return "Droste";
-        case SceneType::Infinite:         return "Infinite";
-        case SceneType::Corridor:         return "Corridor";
-        case SceneType::Cube:             return "Cube";
-        case SceneType::Planet:           return "Planet";
-        case SceneType::Windows:          return "Windows";
-        case SceneType::Melt:             return "Melt";
-        case SceneType::Shatter:          return "Shatter";
-        case SceneType::Prism:            return "Prism";
-        case SceneType::Terrain:          return "Terrain";
-        case SceneType::Breathe:          return "Breathe";
-        case SceneType::Mosh:             return "Mosh";
-        case SceneType::Sort:             return "Sort";
-        case SceneType::Coral:            return "Coral";
-        case SceneType::Scanline:         return "Scanline";
+        case SceneType::PixelMeltScatter:  return "Pixel Melt & Scatter";
+        case SceneType::Smear:             return "Smear";
+        case SceneType::Ripple:            return "Ripple";
+        case SceneType::Flow:              return "Flow";
+        case SceneType::Tiles:             return "Tiles";
+        case SceneType::None:              return "None";
+        case SceneType::Droste:            return "Droste";
+        case SceneType::Infinite:          return "Infinite";
+        case SceneType::Corridor:          return "Corridor";
+        case SceneType::Cube:              return "Cube";
+        case SceneType::Planet:            return "Planet";
+        case SceneType::Windows:           return "Windows";
+        case SceneType::Melt:              return "Melt";
+        case SceneType::Shatter:           return "Shatter";
+        case SceneType::Prism:             return "Prism";
+        case SceneType::Terrain:           return "Terrain";
+        case SceneType::Breathe:           return "Breathe";
+        case SceneType::Mosh:              return "Mosh";
+        case SceneType::Sort:              return "Sort";
+        case SceneType::Coral:             return "Coral";
+        case SceneType::Scanline:          return "Scanline";
+        case SceneType::SandCanvasScatter: return "Sand Melt & Canvas Scatter";
     }
     return "Pixel Melt & Scatter";
 }
@@ -87,7 +89,7 @@ struct VisualParameters
     float chaos = 0.25f;
     float melt = 1.0f;
     float scatter = 1.0f;
-    float pixelSize = 6.0f; // Block size in px at 1080p (range 3.0 to 12.0, default 6.0)
+    float pixelSize = 6.0f; // Block size in px at 1080p (range 0.5 to 12.0, default 6.0)
     float inputGain = 1.0f;
 
     // Persistence

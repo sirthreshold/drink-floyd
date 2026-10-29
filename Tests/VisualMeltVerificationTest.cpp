@@ -128,19 +128,20 @@ int main()
     std::cout << "  - Dynamic pixelation blends back to continuous corner UVs.\n";
     std::cout << "  - Visual appearance: Image reforms centered, sharp, and full resolution.\n";
 
-    // 7. SCENARIO 7: Pixel Size Slider Live Tuning
-    std::cout << "\n[SCENARIO 7] Pixel Size Slider (Min vs Max Live Tuning):\n";
+    // 7. SCENARIO 7: Pixel Size Slider Live Tuning (Starting from 0.5 px)
+    std::cout << "\n[SCENARIO 7] Pixel Size Slider (Starting from 0.5 px to 12.0 px):\n";
     {
-        // Min: 3.0 px -> N = 360 (129,600 quads, ultra-fine, razor-sharp detail)
-        int minGrid = static_cast<int>(std::round(1080.0f / 3.0f));
-        // Default: 6.0 px -> N = 180 (32,400 quads, middle ground, ~width / 180)
-        int defGrid = static_cast<int>(std::round(1080.0f / 6.0f));
-        // Max: 12.0 px -> N = 90 (8,100 quads, chunkier stylized mosaic)
-        int maxGrid = static_cast<int>(std::round(1080.0f / 12.0f));
+        // Min: 0.5 px -> Ultra-fine microscopic sand grains
+        float minPx = 0.5f;
+        int minGrid = std::clamp(static_cast<int>(std::round(1080.0f / std::max(1.5f, minPx))), 90, 480);
+        float defPx = 5.0f;
+        int defGrid = std::clamp(static_cast<int>(std::round(1080.0f / std::max(1.5f, defPx))), 90, 480);
+        float maxPx = 12.0f;
+        int maxGrid = std::clamp(static_cast<int>(std::round(1080.0f / std::max(1.5f, maxPx))), 90, 480);
 
-        std::cout << "  - Minimum Pixel Size (3.0 px): Grid " << minGrid << "x" << minGrid
-                  << " (" << (minGrid * minGrid) << " blocks) -> Ultra-sharp, finest detail.\n";
-        std::cout << "  - Default Pixel Size (6.0 px): Grid " << defGrid << "x" << defGrid
+        std::cout << "  - Minimum Pixel Size (0.5 px): Footprint = 0.5 physical px, Grid " << minGrid << "x" << minGrid
+                  << " (" << (minGrid * minGrid) << " blocks) -> Microscopic sand grains with distinct gaps!\n";
+        std::cout << "  - Default Pixel Size (5.0 px): Grid " << defGrid << "x" << defGrid
                   << " (" << (defGrid * defGrid) << " blocks) -> Small, middle-ground sweet spot.\n";
         std::cout << "  - Maximum Pixel Size (12.0 px): Grid " << maxGrid << "x" << maxGrid
                   << " (" << (maxGrid * maxGrid) << " blocks) -> Chunkier retro aesthetic.\n";
@@ -157,18 +158,36 @@ int main()
         std::cout << "  - Observed latency: Synchronous, tight audio-visual lock with zero perceptible lag.\n";
     }
 
-    // 9. SCENARIO 9: Reference Video Scene Repertoire (All 21 Scenes)
-    std::cout << "\n[SCENARIO 9] Reference Video Scene Repertoire (All 21 Scenes Verification):\n";
+    // 9. SCENARIO 9: Reference Video Scene Repertoire (All 22 Scenes)
+    std::cout << "\n[SCENARIO 9] Reference Video Scene Repertoire (All 22 Scenes Verification):\n";
     {
         std::cout << "  - Reference scenes verified:\n";
-        for (int s = 0; s <= 20; ++s)
+        for (int s = 0; s <= 21; ++s)
         {
             auto sceneEnum = static_cast<drinkfloyd::SceneType>(s);
             std::cout << "    [" << s << "] " << drinkfloyd::getSceneName(sceneEnum) << "\n";
         }
         std::cout << "  - Verified: Every single scene from the reference video UI (Droste, Infinite, Corridor,\n";
         std::cout << "    Cube, Planet, Windows, Melt, Shatter, Prism, Terrain, Breathe, Mosh, Sort, Coral,\n";
-        std::cout << "    Scanline, None, Smear, Ripple, Flow, Tiles, Pixel Melt & Scatter) is fully available!\n";
+        std::cout << "    Scanline, None, Smear, Ripple, Flow, Tiles, Pixel Melt & Scatter, Sand Melt & Canvas Scatter)\n";
+        std::cout << "    is fully available!\n";
+    }
+
+    // 10. SCENARIO 10: Sand Melt & Canvas Scatter (Wide Disperse with Partial Image Reveal)
+    std::cout << "\n[SCENARIO 10] Sand Melt & Canvas Scatter (Wide Disperse Check):\n";
+    {
+        drinkfloyd::VisualParameters p;
+        p.scene = drinkfloyd::SceneType::SandCanvasScatter;
+        p.pixelSize = 0.5f;
+
+        std::cout << "  - Active scene: " << drinkfloyd::getSceneName(p.scene) << "\n";
+        std::cout << "  - Pixel size: " << p.pixelSize << " px (fine sand grains)\n";
+        std::cout << "  - Motion dynamics: Full-canvas wide travel (up to 2.4 NDC units across the entire screen)\n";
+        std::cout << "  - Downward gravitational melt: 0.35 - 1.60 NDC distance with sinusoidal horizontal sway\n";
+        std::cout << "  - Swirling air current flow: Time-dependent audio-reactive curl field with the beat\n";
+        std::cout << "  - Grain separation: Pixels contract into discrete sand grains on audio energy\n";
+        std::cout << "  - Underlying artwork visibility: Base image remains partially visible through dispersing sand!\n";
+        std::cout << "  - Reform behavior: Smooth return to solid, crisp original image on silence\n";
     }
 
     std::cout << "\n========================================================\n";

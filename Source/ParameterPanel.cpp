@@ -46,7 +46,8 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
         "Mosh (Datamosh Glitch)",
         "Sort (Pixel Sorting)",
         "Coral (Branching Curl)",
-        "Scanline (CRT Retro)"
+        "Scanline (CRT Retro)",
+        "Sand Melt & Canvas Scatter (Wide Disperse)"
     }, 1);
 
     randomizeButton.setButtonText("RANDOMIZE LOOK");
@@ -65,7 +66,7 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     setupSlider(reactGroup,       "React",       0.0, 2.0, 1.00);
     setupSlider(meltGroup,        "Melt",        0.0, 2.0, 1.00);
     setupSlider(scatterGroup,     "Scatter",     0.0, 2.0, 1.00);
-    setupSlider(pixelSizeGroup,   "Pixel Size",  3.0, 12.0, 6.00, 0.5);
+    setupSlider(pixelSizeGroup,   "Pixel Size",  0.5, 12.0, 6.00, 0.1);
     setupSlider(chaosGroup,       "Chaos",       0.0, 1.0, 0.25);
     setupSlider(inputGainGroup,   "Input Gain",  0.0, 3.0, 1.00);
 
@@ -171,7 +172,7 @@ void ParameterPanelContent::pushAllParametersToCanvas()
 
     // Scene
     const int sceneId = sceneGroup.comboBox.getSelectedId();
-    p.scene = static_cast<SceneType>(std::clamp(sceneId - 1, 0, 20));
+    p.scene = static_cast<SceneType>(std::clamp(sceneId - 1, 0, 21));
 
     // Dynamics & Scatter
     p.react = static_cast<float>(reactGroup.slider.getValue());
@@ -212,8 +213,8 @@ void ParameterPanelContent::pushAllParametersToCanvas()
 
 void ParameterPanelContent::randomizeLook()
 {
-    // Randomize scene (1 to 21)
-    sceneGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 22)), juce::sendNotification);
+    // Randomize scene (1 to 22)
+    sceneGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 23)), juce::sendNotification);
 
     const int currentSceneId = sceneGroup.comboBox.getSelectedId();
 
@@ -228,9 +229,9 @@ void ParameterPanelContent::randomizeLook()
     brightnessGroup.slider.setValue(random.nextFloat() * 0.35f + 0.90f, juce::sendNotification); // 0.90 - 1.25
     vignetteGroup.slider.setValue(random.nextFloat() * 0.35f + 0.20f, juce::sendNotification);
 
-    if (currentSceneId == 1) // Pixel Melt & Scatter: preserve natural colors
+    if (currentSceneId == 1 || currentSceneId == 22) // Pixel Melt & Scatter or Sand Canvas Scatter: natural colors
     {
-        pixelSizeGroup.slider.setValue(6.0, juce::sendNotification);
+        pixelSizeGroup.slider.setValue(random.nextFloat() * 3.5f + 1.5f, juce::sendNotification);
         hueDriftGroup.slider.setValue(0.0, juce::sendNotification);
         paletteGroup.comboBox.setSelectedId(1, juce::sendNotification); // Original
         lensGroup.slider.setValue(0.0, juce::sendNotification);
