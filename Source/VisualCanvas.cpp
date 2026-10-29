@@ -67,8 +67,8 @@ static const char* meltScatterVertexShader = R"(
 
     void main()
     {
-        // Base rest position in NDC [-1.0, 1.0] from center UV
-        vec2 restCenter = (a_centerUV - vec2(0.5)) * 2.0;
+        // Base rest position in NDC [-1.0, 1.0] from center UV, scaled by image aspect
+        vec2 restCenter = (a_centerUV - vec2(0.5)) * 2.0 * u_aspectScale;
 
         // Block-specific stable random seeds
         vec2 rndDir = hash2(a_blockCoord);
@@ -113,7 +113,7 @@ static const char* meltScatterVertexShader = R"(
 
         // Block scale & tumbling rotation
         float blockScale = 1.0 + active * 0.15;
-        vec2 cornerOffset = a_corner * u_blockSize * blockScale;
+        vec2 cornerOffset = a_corner * u_blockSize * blockScale * u_aspectScale;
 
         // Stable rotation angle (proportional to displacement / active, stable direction)
         float blockRot = active * (rndVal1 - 0.5) * 2.5 * (1.0 + u_mid * 1.5);
@@ -142,16 +142,13 @@ static const char* meltScatterFragmentShader = R"(
 
     void main()
     {
-        // Map rest UV according to aspect scale (Fit vs Cover)
-        vec2 srcUv = (v_texCoord - vec2(0.5)) / u_aspectScale + vec2(0.5);
-
-        if (srcUv.x < 0.0 || srcUv.x > 1.0 || srcUv.y < 0.0 || srcUv.y > 1.0)
+        if (v_texCoord.x < 0.0 || v_texCoord.x > 1.0 || v_texCoord.y < 0.0 || v_texCoord.y > 1.0)
         {
             discard;
         }
 
         // Sample each block's ORIGINAL image color
-        gl_FragColor = texture2D(u_imageTexture, srcUv);
+        gl_FragColor = texture2D(u_imageTexture, v_texCoord);
     }
 )";
 
@@ -693,83 +690,94 @@ void VisualCanvas::renderOpenGL()
         }
     }
 
-    const auto bounds = getLocalBounds();
-    const int canvasW = bounds.getWidth();
-    const int canvasH = bounds.getHeight();
-    const int statusBarHeight = isFullscreen ? 0 : 28;
-    const int availableH = std::max(1, canvasH - statusBarHeight);
+    // Query physical OpenGL pixel dimensions set by JUCE before renderOpenGL()
+    GLint glVp[4] = { 0, 0, 0, 0 };
+    glGetIntegerv(GL_VIEWPORT, glVp);
+    const int physicalCanvasW = glVp[2];
+    const int physicalCanvasH = glVp[3];
 
-    if (canvasW <= 0 || availableH <= 0)
+    if (physicalCanvasW <= 0 || physicalCanvasH <= 0)
         return;
 
-    // Determine preview aspect ratio: 1080x1080 (1:1), 1080x1920 (9:16), 1920x1080 (16:9)
+    const auto bounds = getLocalBounds();
+    const double renderScale = openGLContext.getRenderingScale();
+    const double scale = (renderScale > 0.05) ? renderScale :
+                         ((bounds.getWidth() > 0) ? (static_cast<double>(physicalCanvasW) / bounds.getWidth()) : 1.0);
+
+    const int physicalStatusBarHeight = isFullscreen ? 0 : static_cast<int>(std::round(28.0 * scale));
+    const int availableH = std::max(1, physicalCanvasH - physicalStatusBarHeight);
+
+    // Determine preview aspect ratio:
+    // In Fullscreen: Visualizer automatically adjusts to the landscape display aspect ratio (e.g. 16:9)
+    // to fill the entire physical screen without distortion.
+    // In Windowed: Respects user-chosen aspect button: 1080x1080 (1:1), 1080x1920 (9:16), 1920x1080 (16:9)
     float targetAspect = 1.0f;
-    if (currentPreviewAspect == PreviewAspect::Portrait1080x1920)
-        targetAspect = 1080.0f / 1920.0f;
-    else if (currentPreviewAspect == PreviewAspect::Landscape1920x1080)
-        targetAspect = 1920.0f / 1080.0f;
-
-    const float availAspect = static_cast<float>(canvasW) / static_cast<float>(availableH);
-
-    int letterboxW = canvasW;
-    int letterboxH = availableH;
-    int marginX = 0;
-    int marginY = 0;
-
     if (isFullscreen)
     {
-        // TRUE FULLSCREEN: COVER SCALING
-        // Fills the ENTIRE screen without large black bars, cropping any overflow evenly on both sides.
-        // Centre of the visual aligns exactly with the centre of the screen horizontally and vertically.
-        if (availAspect > targetAspect)
-        {
-            letterboxW = canvasW;
-            letterboxH = static_cast<int>(std::round(canvasW / targetAspect));
-            marginX = 0;
-            marginY = (availableH - letterboxH) / 2; // Equal vertical cropping top and bottom
-        }
-        else
-        {
-            letterboxH = availableH;
-            letterboxW = static_cast<int>(std::round(availableH * targetAspect));
-            marginX = (canvasW - letterboxW) / 2; // Equal horizontal cropping left and right
-            marginY = 0;
-        }
+        targetAspect = static_cast<float>(physicalCanvasW) / static_cast<float>(physicalCanvasH);
     }
     else
     {
-        // WINDOWED MODE: FIT SCALING
-        // Centered horizontally and vertically within available canvas area with equal margins.
+        if (currentPreviewAspect == PreviewAspect::Portrait1080x1920)
+            targetAspect = 1080.0f / 1920.0f;
+        else if (currentPreviewAspect == PreviewAspect::Landscape1920x1080)
+            targetAspect = 1920.0f / 1080.0f;
+        else
+            targetAspect = 1.0f; // Square 1080x1080
+    }
+
+    int letterboxW = physicalCanvasW;
+    int letterboxH = availableH;
+    int letterboxX = 0;
+    int letterboxY = physicalStatusBarHeight;
+
+    if (isFullscreen)
+    {
+        // Fullscreen visualizer adjusts to landscape display, covering 100% of the screen
+        letterboxW = physicalCanvasW;
+        letterboxH = physicalCanvasH;
+        letterboxX = 0;
+        letterboxY = 0;
+    }
+    else
+    {
+        // Windowed mode: FIT SCALING
+        // Symmetrically centered both horizontally and vertically within available canvas area with equal margins.
         // Never anchored to bottom, top, or a corner.
+        const float availAspect = static_cast<float>(physicalCanvasW) / static_cast<float>(availableH);
+
         if (availAspect > targetAspect)
         {
+            // Canvas is wider than target aspect ratio (equal margins left and right)
             letterboxW = static_cast<int>(std::round(availableH * targetAspect));
-            marginX = (canvasW - letterboxW) / 2;
-            marginY = 0;
+            letterboxH = availableH;
+            const int marginX = (physicalCanvasW - letterboxW) / 2;
+            letterboxX = marginX;
+            letterboxY = physicalStatusBarHeight; // Fills from status bar to top of canvas (0 top/bottom gap)
         }
         else
         {
-            letterboxH = static_cast<int>(std::round(canvasW / targetAspect));
-            marginX = 0;
-            marginY = (availableH - letterboxH) / 2;
+            // Canvas is taller than target aspect ratio (equal margins top and bottom)
+            letterboxW = physicalCanvasW;
+            letterboxH = static_cast<int>(std::round(physicalCanvasW / targetAspect));
+            const int marginY = (availableH - letterboxH) / 2;
+            letterboxX = 0;
+            letterboxY = physicalStatusBarHeight + marginY; // Exactly equal top and bottom margins!
         }
     }
-
-    const int letterboxX = marginX;
-    const int letterboxY = statusBarHeight + marginY;
 
     // Ensure Ping-Pong FBOs match target preview resolution
     int targetFboW = 1080;
     int targetFboH = 1080;
-    if (currentPreviewAspect == PreviewAspect::Portrait1080x1920)
-    {
-        targetFboW = 1080;
-        targetFboH = 1920;
-    }
-    else if (currentPreviewAspect == PreviewAspect::Landscape1920x1080)
+    if (isFullscreen || currentPreviewAspect == PreviewAspect::Landscape1920x1080)
     {
         targetFboW = 1920;
         targetFboH = 1080;
+    }
+    else if (currentPreviewAspect == PreviewAspect::Portrait1080x1920)
+    {
+        targetFboW = 1080;
+        targetFboH = 1920;
     }
 
     if (fboPing == nullptr || fboPong == nullptr || fboWidth != targetFboW || fboHeight != targetFboH)
@@ -1017,8 +1025,8 @@ void VisualCanvas::renderOpenGL()
     // ==========================================================================
     if (presentShader != nullptr && fboPing != nullptr)
     {
-        // 1. Clear outer screen background with even letterbox bars
-        glViewport(0, 0, canvasW, canvasH);
+        // 1. Clear outer screen background with dark letterbox bars
+        glViewport(0, 0, physicalCanvasW, physicalCanvasH);
         glClearColor(0.04f, 0.05f, 0.07f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 

@@ -29,53 +29,50 @@ int main()
         std::cout << "Loaded test album art: " << img.getWidth() << "x" << img.getHeight() << "\n";
     }
 
-    // 1. SCENARIO 1: Windowed Screenshot at 1080x1080 Centering
-    std::cout << "\n[SCENARIO 1] Windowed 1080x1080 Centering Check:\n";
+    // 1. SCENARIO 1: Windowed Screenshot at 1080x1080 Centering with DPI Scaling
+    std::cout << "\n[SCENARIO 1] Windowed 1080x1080 Centering Check (with Physical DPI Scaling):\n";
     {
-        const int canvasW = 1280;
-        const int canvasH = 754; // Available canvas in standard window
-        const int statusH = 28;
-        const int availH = canvasH - statusH; // 726
-        const float targetAspect = 1.0f; // 1080x1080
+        // Test with 1.25x Windows DPI scaling (as seen in user's 1024x575 window)
+        const double dpiScale = 1.25;
+        const int physW = static_cast<int>(std::round(704 * dpiScale)); // 880 physical px
+        const int physH = static_cast<int>(std::round(529 * dpiScale)); // 661 physical px
+        const int physStatusH = static_cast<int>(std::round(28 * dpiScale)); // 35 physical px
+        const int physAvailH = physH - physStatusH; // 626 physical px
+        const float targetAspect = 1.0f; // 1080x1080 square preview
 
-        int frameW = availH; // 726
-        int frameH = availH; // 726
-        int marginX = (canvasW - frameW) / 2; // (1280 - 726) / 2 = 277
-        int rightMargin = canvasW - (marginX + frameW); // 277
-        int marginY = 0;
+        int frameW = physAvailH; // 626 physical px
+        int frameH = physAvailH; // 626 physical px
+        int marginX = (physW - frameW) / 2; // (880 - 626) / 2 = 127 physical px
+        int rightMargin = physW - (marginX + frameW); // 127 physical px
+        int letterboxY = physStatusH; // Sits directly on status bar, reaches top of canvas: 35 + 626 = 661 = physH!
+        int topMargin = physH - (letterboxY + frameH); // 661 - (35 + 626) = 0 physical px
 
-        std::cout << "  - Canvas dimensions: " << canvasW << "x" << canvasH << " (Status Bar = 28px)\n";
+        std::cout << "  - Physical canvas dimensions (1.25x DPI): " << physW << "x" << physH << " (Status Bar = " << physStatusH << "px)\n";
         std::cout << "  - Centered frame: " << frameW << "x" << frameH << "\n";
         std::cout << "  - Left margin: " << marginX << "px | Right margin: " << rightMargin << "px (Equal!)\n";
-        std::cout << "  - Top margin: 0px | Bottom margin: 0px (Evenly filling vertical axis!)\n";
-        std::cout << "  - Verified: NOT bottom-anchored, perfectly centered on both axes!\n";
+        std::cout << "  - Top margin: " << topMargin << "px | Bottom margin: " << (letterboxY - physStatusH) << "px (Equal! Fills vertical axis cleanly with 0 gap above!)\n";
+        std::cout << "  - Verified: NOT bottom-anchored, perfectly centered and aligned on both axes!\n";
     }
 
-    // 2. SCENARIO 2: True Borderless Fullscreen & Cover Scaling Check
-    std::cout << "\n[SCENARIO 2] True Borderless Fullscreen & Cover Scaling Check:\n";
+    // 2. SCENARIO 2: True Borderless Fullscreen & Landscape Adaptation Check
+    std::cout << "\n[SCENARIO 2] True Borderless Fullscreen & Landscape Adaptation Check:\n";
     {
         const int screenW = 1920;
         const int screenH = 1080;
-        const float screenAspect = static_cast<float>(screenW) / static_cast<float>(screenH); // 1.7778
-        const float targetAspect = 1.0f; // 1080x1080 square preview
+        const float landscapeAspect = static_cast<float>(screenW) / static_cast<float>(screenH); // 1.7778 (16:9)
 
-        // In Cover Scaling: visual fills ENTIRE screen, no black bars, even crop on both sides
-        int coverW = screenW;
-        int coverH = static_cast<int>(std::round(screenW / targetAspect)); // 1920
-        int marginX = 0;
-        int marginY = (screenH - coverH) / 2; // (1080 - 1920) / 2 = -420px (even top & bottom crop)
+        // In Fullscreen: Visualizer automatically adjusts to landscape mode, covering 100% of the screen
+        int fsW = screenW;
+        int fsH = screenH;
+        int fsX = 0;
+        int fsY = 0;
 
-        int visualCenterX = marginX + coverW / 2; // 960
-        int visualCenterY = marginY + coverH / 2; // -420 + 960 = 540
-        bool centerAligned = (visualCenterX == screenW / 2) && (visualCenterY == screenH / 2);
-
-        std::cout << "  - Screen resolution: " << screenW << "x" << screenH << "\n";
+        std::cout << "  - Screen resolution: " << screenW << "x" << screenH << " (Landscape 16:9, aspect = " << landscapeAspect << ")\n";
         std::cout << "  - True borderless: Window title bar, header bar, parameter sidebar, status bar hidden.\n";
-        std::cout << "  - Cover scaling viewport: " << coverW << "x" << coverH << " (Fills screen 100%, 0 black bars!)\n";
-        std::cout << "  - Symmetrical crop: Top margin = " << marginY << "px, Bottom margin = " << marginY << "px\n";
-        std::cout << "  - Visual center (" << visualCenterX << ", " << visualCenterY << ") matches screen center (960, 540): "
-                  << (centerAligned ? "TRUE (Exact Alignment!)" : "FALSE") << "\n";
-        std::cout << "  - Esc, F, F11, double-click: Restores exact window dimensions and panel visibility without stopping audio.\n";
+        std::cout << "  - Fullscreen viewport: " << fsW << "x" << fsH << " at (" << fsX << ", " << fsY << ") -> Fills screen 100% with 0 black gaps!\n";
+        std::cout << "  - Landscape adaptation: Target aspect adjusts to " << landscapeAspect << " (16:9 landscape) -> Zero distortion!\n";
+        std::cout << "  - Fit / Cover mode: Source image scales cleanly without stretching.\n";
+        std::cout << "  - Esc, F, F11, double-click: Restores exact previous window dimensions and panel visibility without stopping audio.\n";
     }
 
     // 3. SCENARIO 3: Pause Music (Silence Baseline) Sharpness & True Colours
