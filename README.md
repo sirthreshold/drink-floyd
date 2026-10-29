@@ -1,63 +1,72 @@
-# Drink Floyd
+# Drink Floyd 2.0
 
-> **Phase 0 — Windows Standalone Audio-Reactive Visualizer**
-> Built with C++20, JUCE 8, and CMake.
+> **Original Audio-Reactive Desktop Music Visualizer for Windows**  
+> Built with C++20, OpenGL GLSL Shaders, JUCE 8, and WASAPI Loopback Capture.
 
-**Drink Floyd** is an original standalone audio-reactive desktop music visualizer for Windows. Phase 0 establishes the native standalone application scaffold, core window layout, FPS readout header, dark parameter control panel, and full architectural specifications.
-
----
-
-## Architecture Overview (Phase 0)
-- **Target**: Windows Standalone Application ONLY (`DrinkFloyd.exe`).
-- **No DAW Plugins**: Completely free of VST3, AU, AAX, plugin wrappers, or host automation code.
-- **Framework**: JUCE 8 (`juce_gui_extra`, `juce_gui_basics`, `juce_core`, `juce_graphics`, `juce_data_structures`, `juce_events`).
-- **Standard**: C++20.
-- **Build System**: CMake 3.22+ targeting Visual Studio 2022 (MSVC) or Ninja/GCC.
+Drink Floyd is a high-performance, real-time music visualizer designed like a sleek macOS Pro app. It captures whatever audio is playing on your Windows PC with near-zero latency, breaking loaded artwork, album covers, or live YouTube video frames into dynamic audio-reactive pixel melts, sand scatters, and kaleidoscopic fluid warps.
 
 ---
 
-## Layout
-The main window consists of:
-1. **Header Bar**:
-   - Application branding: **Drink Floyd**.
-   - Live **FPS readout** (real-time delta timer).
-   - Mode indicator: **Windows Standalone | Phase 0**.
-   - Output resolution profile selectors (`1080x1080`, `1080x1920`, `1920x1080`).
-2. **Left Visual Canvas**:
-   - Expansive dark viewport reserved for real-time graphics rendering.
-   - Dynamic aspect-ratio letterboxing.
-3. **Right Parameter Panel**:
-   - Dark parameter sidebar containing controls for all 16 canonical visualizer parameters:
-     - *react*, *chaos*, *input gain*
-     - *trails*, *heat*, *decay*
-     - *brightness*, *hue drift*, *palette*, *vignette*
-     - *symmetry*, *tiles*, *twist*, *slice*, *lens*, *lens style*
+## Quick Download for Windows (No Compilation Required)
+
+Your friends do not need to install CMake or Visual Studio to run Drink Floyd!
+
+1. Go to the [Releases](https://github.com/) tab on this repository.
+2. Download **`Drink-Floyd-2.0-Windows.zip`**.
+3. Extract the ZIP anywhere on your PC.
+4. Double-click **`drinkfloys2.0.exe`** (or `Drink Floyd 2.0.exe`) and start playing music!
 
 ---
 
-## Windows Build Steps
+## Included Custom Presets
 
-### Option A: Building with Visual Studio 2022 (Recommended for VS users)
+The app comes with your custom looks already installed and ready in the **PRESETS & PROFILES** dropdown:
+- **`landscsape`**: Smooth dynamic pixel melt & scatter with dual-axis symmetry, subtle lens refraction, and warm tones.
+- **`purple haze`**: Kaleidoscopic multi-tile distortion with deep electric violet / magenta aesthetic tinting.
+- **`randomizer`**: Wide-angle sand disperse with Blood Moon gradient and audio-reactive swirling curl field.
+- **`sand`**: Fine-grain pixel separation with underlying image transparency and snappy beat response.
+- **`My Custom Preset`**: High-reactivity custom color-tinted melt look.
+*Plus 10 factory audio-reactive styles (808 Disperse, House Quads, Droste Spiral, Cyberpunk Datamosh, etc.).*
 
-#### Prerequisites
-- **Visual Studio 2022** (Community, Professional, or Enterprise)
-  - Ensure the **"Desktop development with C++"** workload is installed.
-  - Includes MSVC v143 (x64) and Windows 10/11 SDK.
-- **CMake** 3.22 or higher.
-- **Git**.
+---
 
-#### Build Instructions
-Open **Developer PowerShell for VS 2022** or standard terminal:
+## Key Features
 
-1. **Clone the repository**:
-   ```powershell
-   git clone <repo-url> drink-floyd
-   cd drink-floyd
-   ```
+- **macOS Dark Theme UI/UX**: Authentic macOS design featuring traffic light window controls (close, minimize, fullscreen), capsule sliders, dark slate cards, and Logic Pro style audio DSP inspector.
+- **Multi-Genre Music Reactivity**: Multi-band spectral flux tracking kicks, 808 sub-bass, sharp snares/claps, rolling trap hi-hats, and vocal transients across hip hop, rock, pop, EDM, and funk.
+- **Automatic YouTube Video Sync**: Click `[Sync YouTube]` (or press `F9`) while playing any video on YouTube in Chrome, Edge, Brave, or Firefox. Drink Floyd automatically captures the video frame and displays it without manual copy-pasting.
+- **22 Visual Scenes**: Pixel Melt & Scatter, Sand Canvas Disperse, Smear, Ripple, Flow, Tiles, Droste Spiral, Hyperspace Tunnel, Corridor, Cube, Planet, Windows Glitch, Melt, Shatter, Prism, Terrain, Breathe, Datamosh, Sort, Coral, Scanline, and Pure Image.
+- **16 Gradient Color Swatches**: Neon Ultraviolet, Solar Flare, Monochrome Ice, Dark Floyd, Cyberpunk Sunset, Vaporwave Twilight, Emerald Aurora, Blood Moon, Deep Ocean Abyss, Acid Toxic Green, Hyperpop Bubblegum, Golden Hour, Infrared Thermal, Retro Synthwave, and Custom Tint.
+- **True Borderless Fullscreen**: Press `F11` or `F` to enter borderless cover mode that fills the entire display with zero borders. Press `Esc` or double-click to return.
 
-2. **Generate Visual Studio 2022 Solution**:
-   ```powershell
-   cmake -B build -G "Visual Studio 17 2022" -A x64
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `F11` or `F` | Toggle True Borderless Fullscreen |
+| `Esc` | Exit Fullscreen |
+| `F9` or `Ctrl + Y` | Automatically Sync YouTube Video Player |
+| `Ctrl + V` | Paste Image from Clipboard |
+| `Ctrl + O` | Open Image File Dialog |
+| Double-Click Canvas | Toggle Fullscreen |
+
+---
+
+## Building from Source (Developers)
+
+### Prerequisites
+- Visual Studio 2022 (with *Desktop development with C++*)
+- CMake 3.22 or higher
+- Windows 10/11 SDK
+
+```powershell
+git clone <your-repo-url>
+cd drink-floyd
+cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+```
    ```
 
 3. **Build the Standalone Executable**:
