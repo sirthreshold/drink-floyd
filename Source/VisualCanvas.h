@@ -68,6 +68,8 @@ public:
     VisualParameters getParameters() const;
     void setScene(SceneType scene);
 
+    void setDirectImage(const juce::Image& img, const juce::String& sourceTitle);
+
     void setFullscreen(bool fs);
     bool getFullscreen() const noexcept { return isFullscreen; }
 

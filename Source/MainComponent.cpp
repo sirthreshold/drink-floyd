@@ -1,4 +1,5 @@
 #include "MainComponent.h"
+#include "YouTubeMediaSync.h"
 #if JUCE_WINDOWS
 #include <windows.h>
 #endif
@@ -12,6 +13,8 @@ MainComponent::MainComponent()
       visualCanvas(headerBar, audioAnalysisEngine),
       parameterPanel(audioAnalysisEngine, visualCanvas)
 {
+    juce::LookAndFeel::setDefaultLookAndFeel(&macDarkLookAndFeel);
+
     addAndMakeVisible(headerBar);
     addAndMakeVisible(visualCanvas);
     addAndMakeVisible(parameterPanel);
@@ -25,6 +28,11 @@ MainComponent::MainComponent()
     headerBar.onPasteImage = [this]()
     {
         visualCanvas.pasteFromClipboard();
+    };
+
+    headerBar.onSyncYouTube = [this]()
+    {
+        YouTubeMediaSync::syncCurrentYouTube(visualCanvas);
     };
 
     headerBar.onToggleScaleMode = [this]()
@@ -63,6 +71,7 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent()
 {
+    juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
     audioCaptureEngine.stop();
     removeKeyListener(this);
 }
@@ -174,6 +183,13 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* /*ori
         return true;
     }
 
+    // F9: sync YouTube video frame
+    if (key.isKeyCode(juce::KeyPress::F9Key))
+    {
+        YouTubeMediaSync::syncCurrentYouTube(visualCanvas);
+        return true;
+    }
+
     // F: toggle fullscreen (when no modifiers pressed)
     if (!key.getModifiers().isAnyModifierKeyDown() && (key.getTextCharacter() == 'f' || key.getTextCharacter() == 'F'))
     {
@@ -195,6 +211,12 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* /*ori
             visualCanvas.openFileDialog();
             return true;
         }
+
+        if (key.getKeyCode() == 'Y' || key.getKeyCode() == 'y')
+        {
+            YouTubeMediaSync::syncCurrentYouTube(visualCanvas);
+            return true;
+        }
     }
 
     return false;
@@ -202,7 +224,7 @@ bool MainComponent::keyPressed(const juce::KeyPress& key, juce::Component* /*ori
 
 void MainComponent::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xff0e1015));
+    g.fillAll(juce::Colour(0xff121217));
 }
 
 void MainComponent::resized()

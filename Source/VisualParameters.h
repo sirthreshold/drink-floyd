@@ -63,14 +63,47 @@ inline juce::String getSceneName(SceneType scene)
 
 enum class PalettePreset : int
 {
-    Original = 0,
-    PrismCore = 0, // Alias for backwards compatibility
-    NeonUltraviolet = 1,
-    SolarFlare = 2,
-    MonochromeIce = 3,
-    DarkFloyd = 4,
-    Custom = 5
+    Original = 0,          // 0: Original image colors (Untouched true colors)
+    NeonUltraviolet = 1,   // 1: Neon Ultraviolet (Dark violet -> Magenta -> Cyan)
+    SolarFlare = 2,        // 2: Solar Flare (Deep red -> Amber -> Sun gold)
+    MonochromeIce = 3,     // 3: Monochrome Ice (Midnight blue -> Glacier -> Frost white)
+    DarkFloyd = 4,         // 4: Dark Floyd (Deep black -> Toxic emerald -> Bright lime)
+    CyberpunkSunset = 5,   // 5: Cyberpunk Sunset (Dark purple -> Hot pink -> Neon orange -> Yellow)
+    VaporwaveTwilight = 6, // 6: Vaporwave Twilight (Navy -> Indigo -> Pastel magenta -> Sky blue)
+    EmeraldAurora = 7,     // 7: Emerald Aurora (Deep forest -> Neon green -> Electric teal -> White)
+    BloodMoon = 8,         // 8: Blood Moon (Obsidian -> Crimson -> Blood orange -> White)
+    DeepOceanAbyss = 9,    // 9: Deep Ocean Abyss (Deep trench -> Sapphire -> Aquamarine -> White)
+    AcidToxicGreen = 10,   // 10: Acid Toxic Green (Black -> Acid chartreuse -> Lime neon -> White)
+    HyperpopBubblegum = 11,// 11: Hyperpop Bubblegum (Electric violet -> Hot bubblegum -> Peach -> Cream)
+    GoldenHour = 12,       // 12: Golden Hour (Mahogany -> Amber bronze -> Golden sunshine -> Warm ivory)
+    InfraredThermal = 13,  // 13: Infrared Thermal (Deep purple -> Blue -> Yellow -> White)
+    RetroSynthwave = 14,   // 14: Retro Synthwave (Deep navy -> Magenta 80s -> Electric orange -> Yellow)
+    Custom = 15            // 15: Custom (User picked swatch color gradient)
 };
+
+inline juce::String getPalettePresetName(PalettePreset p)
+{
+    switch (p)
+    {
+        case PalettePreset::Original:          return "Original (True Colors)";
+        case PalettePreset::NeonUltraviolet:   return "Neon Ultraviolet";
+        case PalettePreset::SolarFlare:        return "Solar Flare";
+        case PalettePreset::MonochromeIce:     return "Monochrome Ice";
+        case PalettePreset::DarkFloyd:         return "Dark Floyd (Toxic)";
+        case PalettePreset::CyberpunkSunset:   return "Cyberpunk Sunset";
+        case PalettePreset::VaporwaveTwilight: return "Vaporwave Twilight";
+        case PalettePreset::EmeraldAurora:     return "Emerald Aurora";
+        case PalettePreset::BloodMoon:         return "Blood Moon";
+        case PalettePreset::DeepOceanAbyss:    return "Deep Ocean Abyss";
+        case PalettePreset::AcidToxicGreen:    return "Acid Toxic Green";
+        case PalettePreset::HyperpopBubblegum: return "Hyperpop Bubblegum";
+        case PalettePreset::GoldenHour:        return "Golden Hour";
+        case PalettePreset::InfraredThermal:   return "Infrared Thermal";
+        case PalettePreset::RetroSynthwave:    return "Retro Synthwave";
+        case PalettePreset::Custom:            return "Custom Swatch";
+    }
+    return "Original (True Colors)";
+}
 
 enum class LensStyle : int
 {

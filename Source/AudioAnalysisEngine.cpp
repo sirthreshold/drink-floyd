@@ -34,7 +34,12 @@ void AudioAnalysisEngine::reset()
     envHigh = 0.0f;
     envRawRms = 0.0f;
     prevBassEnergy = 0.0f;
+    prevLowMidEnergy = 0.0f;
+    prevMidEnergy = 0.0f;
+    prevHighEnergy = 0.0f;
     avgBassFlux = 0.02f;
+    avgSnareFlux = 0.02f;
+    avgHiHatFlux = 0.02f;
     currentBeat = 0.0f;
     silentHopsCount = 0;
 
@@ -214,10 +219,10 @@ void AudioAnalysisEngine::processHop(double sampleRate)
         return std::tanh(2.5f * scaled);
     };
 
-    const float targetBass   = scaleLevel(rawBass, 3.2f);
-    const float targetLowMid = scaleLevel(rawLowMid, 5.0f);
-    const float targetMid    = scaleLevel(rawMid, 7.5f);
-    const float targetHigh   = scaleLevel(rawHigh, 11.0f);
+    const float targetBass   = scaleLevel(rawBass, 3.4f);
+    const float targetLowMid = scaleLevel(rawLowMid, 5.5f);
+    const float targetMid    = scaleLevel(rawMid, 8.5f);
+    const float targetHigh   = scaleLevel(rawHigh, 12.0f);
     const float targetRms    = std::clamp(rms * gain * 3.0f, 0.0f, 1.0f);
 
     // Calculate attack / release coefficients based on hop duration
@@ -248,7 +253,7 @@ void AudioAnalysisEngine::processHop(double sampleRate)
         envRawRms *= 0.90f;
     }
 
-    // Instantaneous Transient & Beat Onset Detection
+    // Instantaneous Transient & Multi-Genre Beat Onset Detection
     // 1. Time-domain jump on the current hop (0-5ms zero-latency onset)
     float recentHopSq = 0.0f;
     for (int i = 0; i < HOP_SIZE; ++i)
@@ -260,15 +265,43 @@ void AudioAnalysisEngine::processHop(double sampleRate)
     const float instantHopRms = std::sqrt(recentHopSq / static_cast<float>(HOP_SIZE));
     const float instantFlux = std::max(0.0f, instantHopRms * gain * 3.5f - envRawRms);
 
-    // 2. Frequency-domain spectral flux on bass band
-    const float bassFlux = std::max(0.0f, targetBass - prevBassEnergy);
-    prevBassEnergy = targetBass;
-    avgBassFlux = 0.91f * avgBassFlux + 0.09f * bassFlux;
+    // 2. Multi-band spectral flux:
+    // - Bass flux: kicks, 808 transient attacks (House, Techno, Hip Hop kicks)
+    // - Snare / Clap flux: mid & low-mid sharp spikes (Hip Hop, Trap, R&B, Rock, Pop snares/rims/claps)
+    // - Hi-Hat / Cymbals flux: high frequencies (Trap rolling hats, shakers, cymbals)
+    const float bassFlux   = std::max(0.0f, targetBass - prevBassEnergy);
+    const float lowMidFlux = std::max(0.0f, targetLowMid - prevLowMidEnergy);
+    const float midFlux    = std::max(0.0f, targetMid - prevMidEnergy);
+    const float highFlux   = std::max(0.0f, targetHigh - prevHighEnergy);
 
-    const float beatThreshold = avgBassFlux * 1.5f + 0.030f;
-    if ((bassFlux > beatThreshold && targetBass > 0.10f) || (instantFlux > 0.09f && targetBass > 0.12f))
+    prevBassEnergy   = targetBass;
+    prevLowMidEnergy = targetLowMid;
+    prevMidEnergy    = targetMid;
+    prevHighEnergy   = targetHigh;
+
+    avgBassFlux  = 0.90f * avgBassFlux  + 0.10f * bassFlux;
+    avgSnareFlux = 0.90f * avgSnareFlux + 0.10f * (midFlux + lowMidFlux * 0.70f);
+    avgHiHatFlux = 0.90f * avgHiHatFlux + 0.10f * highFlux;
+
+    const bool bassOnset   = (bassFlux > (avgBassFlux * 1.35f + 0.022f)) && (targetBass > 0.08f);
+    const bool snareOnset  = ((midFlux + lowMidFlux * 0.70f) > (avgSnareFlux * 1.30f + 0.024f)) && (targetMid > 0.08f || targetLowMid > 0.09f);
+    const bool hiHatOnset  = (highFlux > (avgHiHatFlux * 1.60f + 0.035f)) && (targetHigh > 0.12f);
+    const bool broadOnset  = (instantFlux > 0.075f) && (targetBass > 0.07f || targetMid > 0.08f);
+    const bool sustained808 = (targetBass > 0.50f);
+
+    if (bassOnset || snareOnset || hiHatOnset || broadOnset)
     {
-        currentBeat = 1.0f;
+        float beatVelocity = 1.0f;
+        if (snareOnset && !bassOnset)
+            beatVelocity = 0.92f;
+        else if (hiHatOnset && !bassOnset && !snareOnset)
+            beatVelocity = 0.65f;
+
+        currentBeat = std::max(currentBeat, beatVelocity);
+    }
+    else if (sustained808)
+    {
+        currentBeat = std::max(currentBeat, targetBass * 0.60f);
     }
     else
     {

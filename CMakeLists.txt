@@ -60,6 +60,12 @@ target_sources(DrinkFloyd PRIVATE
     Source/AudioCaptureEngine.cpp
     Source/AudioMonitorView.h
     Source/AudioMonitorView.cpp
+    Source/PresetManager.h
+    Source/PresetManager.cpp
+    Source/YouTubeMediaSync.h
+    Source/YouTubeMediaSync.cpp
+    Source/MacDarkLookAndFeel.h
+    Source/MacDarkLookAndFeel.cpp
 )
 
 # Compile Definitions
@@ -83,6 +89,7 @@ target_link_libraries(DrinkFloyd PRIVATE
     user32
     gdi32
     mmdevapi
+    wininet
 )
 
 # Test Runner Executable (Image Import)
@@ -219,6 +226,7 @@ target_link_libraries(RenderBenchmarkTest PRIVATE
     user32
     gdi32
     mmdevapi
+    wininet
 )
 
 # Test Runner Executable (Visual Melt & Scatter Verification)
@@ -253,4 +261,5 @@ target_link_libraries(VisualMeltVerificationTest PRIVATE
     user32
     gdi32
     mmdevapi
+    wininet
 )

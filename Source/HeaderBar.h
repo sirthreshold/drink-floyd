@@ -26,6 +26,7 @@ public:
 
     std::function<void()> onOpenImage;
     std::function<void()> onPasteImage;
+    std::function<void()> onSyncYouTube;
     std::function<void()> onToggleScaleMode;
     std::function<void(int)> onAspectChanged;
     std::function<void()> onToggleFullscreen;
@@ -33,11 +34,17 @@ public:
 private:
     void timerCallback() override;
 
+    // macOS Traffic Light Dots
+    juce::TextButton closeDot;
+    juce::TextButton minimizeDot;
+    juce::TextButton zoomDot;
+
     juce::Label titleLabel;
     juce::Label statusBadge;
     juce::Label audioStatusBadge;
     juce::TextButton openButton;
     juce::TextButton pasteButton;
+    juce::TextButton syncYouTubeButton;
     juce::TextButton scaleModeButton;
     juce::TextButton fullscreenButton;
 

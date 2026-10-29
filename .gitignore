@@ -48,6 +48,8 @@ _deps/
 # IDE / Editor Files
 .vscode/
 .idea/
+dist/
+*.zip
 *.sublime-project
 *.sublime-workspace
 

@@ -61,9 +61,14 @@ private:
     float envHigh = 0.0f;
     float envRawRms = 0.0f;
 
-    // Beat / onset detection state
+    // Multi-band beat & transient onset detection state (Kicks, 808s, Snares, Claps, Hi-Hats, Vocals)
     float prevBassEnergy = 0.0f;
+    float prevLowMidEnergy = 0.0f;
+    float prevMidEnergy = 0.0f;
+    float prevHighEnergy = 0.0f;
     float avgBassFlux = 0.02f;
+    float avgSnareFlux = 0.02f;
+    float avgHiHatFlux = 0.02f;
     float currentBeat = 0.0f;
 
     // Parameters (atomic)

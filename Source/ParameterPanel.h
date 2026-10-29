@@ -4,6 +4,7 @@
 #include "AudioAnalysisEngine.h"
 #include "AudioMonitorView.h"
 #include "VisualParameters.h"
+#include "PresetManager.h"
 
 namespace drinkfloyd
 {
@@ -21,6 +22,10 @@ public:
 
     void randomizeLook();
     void pushAllParametersToCanvas();
+    void applyParametersToUI(const VisualParameters& p);
+    void refreshPresetList(const juce::String& selectName = {});
+    void loadPresetByName(const juce::String& name);
+    void promptSavePreset();
 
 private:
     struct SliderGroup
@@ -44,6 +49,12 @@ private:
 
     // Real-time Audio Monitor
     AudioMonitorView monitorView;
+
+    // Preset Manager Section
+    juce::Label presetSection;
+    ComboGroup  presetGroup;
+    juce::TextButton savePresetButton;
+    PresetManager presetManager;
 
     // Scene & Preset Strip
     juce::Label sceneSection;

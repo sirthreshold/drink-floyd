@@ -77,8 +77,8 @@ static const char* meltScatterVertexShader = R"(
         float rndVal1 = hash1(a_blockCoord * 1.618);
         float rndVal2 = hash1(a_blockCoord * 3.1415 + vec2(7.1, 13.3));
 
-        // Audio force: driven by bass, beat transients, and mid punch
-        float audioForce = (u_bass * 1.5 + u_beat * 1.3 + u_lowMid * 0.5) * u_react;
+        // Audio force: multi-band response across all genres (kicks, 808s, snares, claps, hi-hats, vocals)
+        float audioForce = (u_bass * 1.20 + u_beat * 1.25 + u_lowMid * 0.70 + u_mid * 0.80 + u_high * 0.50) * u_react;
 
         // Activation threshold: staggered breakaway so blocks melt dynamically
         float threshold = rndVal1 * 0.30;
@@ -544,51 +544,149 @@ static const char* presentFragmentShader = R"(
             col.rgb = rotateHue(col.rgb, u_hueDrift * 6.2831853);
         }
 
-        // Palette presets (0 = Original: strictly untouched true colors; 1-5 = stylized presets)
+        // Palette presets (0 = Original: untouched true colors; 1-15 = stylized gradient swatches)
         if (u_palette > 0)
         {
             float lum = clamp(dot(col.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+            vec3 pal = col.rgb;
 
             if (u_palette == 1) // Neon Ultraviolet
             {
                 vec3 c0 = vec3(0.08, 0.02, 0.22);
                 vec3 c1 = vec3(0.92, 0.05, 0.55);
                 vec3 c2 = vec3(0.0, 0.95, 0.95);
-                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-                col.rgb = mix(col.rgb, pal, 0.75);
+                pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
             }
             else if (u_palette == 2) // Solar Flare
             {
                 vec3 c0 = vec3(0.05, 0.01, 0.01);
                 vec3 c1 = vec3(0.85, 0.12, 0.05);
-                vec3 c2 = vec3(1.0, 0.85, 0.2);
-                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-                col.rgb = mix(col.rgb, pal, 0.80);
+                vec3 c2 = vec3(1.0, 0.85, 0.20);
+                pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
             }
             else if (u_palette == 3) // Monochrome Ice
             {
                 vec3 c0 = vec3(0.04, 0.08, 0.15);
                 vec3 c1 = vec3(0.25, 0.65, 0.85);
-                vec3 c2 = vec3(0.92, 0.96, 1.0);
-                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-                col.rgb = mix(col.rgb, pal, 0.85);
+                vec3 c2 = vec3(0.92, 0.96, 1.00);
+                pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
             }
             else if (u_palette == 4) // Dark Floyd
             {
                 vec3 c0 = vec3(0.02, 0.04, 0.03);
-                vec3 c1 = vec3(0.0, 0.85, 0.45);
+                vec3 c1 = vec3(0.00, 0.85, 0.45);
                 vec3 c2 = vec3(0.95, 0.85, 0.15);
-                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-                col.rgb = mix(col.rgb, pal, 0.75);
+                pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
             }
-            else if (u_palette == 5) // Custom
+            else if (u_palette == 5) // Cyberpunk Sunset
+            {
+                vec3 c0 = vec3(0.12, 0.02, 0.24);
+                vec3 c1 = vec3(0.95, 0.10, 0.48);
+                vec3 c2 = vec3(1.00, 0.55, 0.05);
+                vec3 c3 = vec3(1.00, 0.92, 0.25);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 6) // Vaporwave Twilight
+            {
+                vec3 c0 = vec3(0.06, 0.05, 0.20);
+                vec3 c1 = vec3(0.45, 0.15, 0.60);
+                vec3 c2 = vec3(0.98, 0.45, 0.75);
+                vec3 c3 = vec3(0.20, 0.85, 0.95);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 7) // Emerald Aurora
+            {
+                vec3 c0 = vec3(0.01, 0.04, 0.03);
+                vec3 c1 = vec3(0.05, 0.50, 0.25);
+                vec3 c2 = vec3(0.10, 0.90, 0.70);
+                vec3 c3 = vec3(0.85, 1.00, 0.92);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 8) // Blood Moon
+            {
+                vec3 c0 = vec3(0.04, 0.01, 0.02);
+                vec3 c1 = vec3(0.60, 0.05, 0.08);
+                vec3 c2 = vec3(0.95, 0.25, 0.05);
+                vec3 c3 = vec3(1.00, 0.88, 0.80);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 9) // Deep Ocean Abyss
+            {
+                vec3 c0 = vec3(0.02, 0.04, 0.12);
+                vec3 c1 = vec3(0.05, 0.35, 0.70);
+                vec3 c2 = vec3(0.00, 0.80, 0.85);
+                vec3 c3 = vec3(0.80, 0.96, 1.00);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 10) // Acid Toxic Green
+            {
+                vec3 c0 = vec3(0.02, 0.03, 0.01);
+                vec3 c1 = vec3(0.20, 0.75, 0.05);
+                vec3 c2 = vec3(0.80, 0.95, 0.10);
+                vec3 c3 = vec3(0.95, 1.00, 0.70);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 11) // Hyperpop Bubblegum
+            {
+                vec3 c0 = vec3(0.18, 0.05, 0.35);
+                vec3 c1 = vec3(0.95, 0.20, 0.65);
+                vec3 c2 = vec3(1.00, 0.65, 0.75);
+                vec3 c3 = vec3(1.00, 0.95, 0.90);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 12) // Golden Hour
+            {
+                vec3 c0 = vec3(0.12, 0.04, 0.02);
+                vec3 c1 = vec3(0.70, 0.35, 0.10);
+                vec3 c2 = vec3(0.98, 0.75, 0.20);
+                vec3 c3 = vec3(1.00, 0.96, 0.85);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 13) // Infrared Thermal
+            {
+                vec3 c0 = vec3(0.05, 0.00, 0.25);
+                vec3 c1 = vec3(0.10, 0.40, 0.90);
+                vec3 c2 = vec3(0.95, 0.85, 0.10);
+                vec3 c3 = vec3(1.00, 0.98, 0.95);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 14) // Retro Synthwave
+            {
+                vec3 c0 = vec3(0.08, 0.05, 0.25);
+                vec3 c1 = vec3(0.85, 0.10, 0.55);
+                vec3 c2 = vec3(1.00, 0.50, 0.10);
+                vec3 c3 = vec3(1.00, 0.90, 0.20);
+                if (lum < 0.33) pal = mix(c0, c1, lum * 3.0);
+                else if (lum < 0.66) pal = mix(c1, c2, (lum - 0.33) * 3.0);
+                else pal = mix(c2, c3, (lum - 0.66) * 3.0);
+            }
+            else if (u_palette == 15) // Custom User Swatch
             {
                 vec3 c0 = vec3(0.02, 0.02, 0.03);
                 vec3 c1 = u_customColour;
                 vec3 c2 = vec3(1.0, 1.0, 1.0);
-                vec3 pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
-                col.rgb = mix(col.rgb, pal, 0.80);
+                pal = (lum < 0.5) ? mix(c0, c1, lum * 2.0) : mix(c1, c2, (lum - 0.5) * 2.0);
             }
+
+            col.rgb = mix(col.rgb, pal, 0.82);
         }
 
         col.rgb *= u_brightness;
@@ -1321,37 +1419,37 @@ void VisualCanvas::paint(juce::Graphics& g)
     // Bottom Status Line
     const auto statusArea = juce::Rectangle<int>(0, bounds.getBottom() - statusBarHeight, w, statusBarHeight);
 
-    g.setColour(juce::Colour(0xff10131a));
+    g.setColour(juce::Colour(0xff14141a));
     g.fillRect(statusArea);
 
-    g.setColour(juce::Colour(0xff232732));
+    g.setColour(juce::Colour(0xff22222e));
     g.drawHorizontalLine(statusArea.getY(), 0.0f, static_cast<float>(w));
 
     if (isStatusError)
-        g.setColour(juce::Colour(0xffff9966));
+        g.setColour(juce::Colour(0xfff43f5e));
     else if (hasImage.load())
-        g.setColour(juce::Colour(0xffd0d7e5));
+        g.setColour(juce::Colour(0xffd4d4dc));
     else
-        g.setColour(juce::Colour(0xff7d8799));
+        g.setColour(juce::Colour(0xff71717a));
 
-    g.setFont(juce::FontOptions(11.0f, juce::Font::plain));
+    g.setFont(juce::FontOptions("Segoe UI Variable", 11.0f, juce::Font::plain));
     g.drawText(currentStatusText,
-               statusArea.reduced(12, 0).withTrimmedRight(260),
+               statusArea.reduced(14, 0).withTrimmedRight(240),
                juce::Justification::centredLeft,
                true);
 
     // Right-hand Scene & Mode Indicator Pill
-    const auto modePillRect = statusArea.reduced(10, 4).removeFromRight(240);
-    g.setColour(juce::Colour(0xff181c25));
-    g.fillRoundedRectangle(modePillRect.toFloat(), 4.0f);
+    const auto modePillRect = statusArea.reduced(10, 4).removeFromRight(230);
+    g.setColour(juce::Colour(0xff1d1d28));
+    g.fillRoundedRectangle(modePillRect.toFloat(), 6.0f);
 
-    g.setColour(juce::Colour(0xff2c3444));
-    g.drawRoundedRectangle(modePillRect.toFloat(), 4.0f, 1.0f);
+    g.setColour(juce::Colour(0xff2d2d3e));
+    g.drawRoundedRectangle(modePillRect.toFloat(), 6.0f, 1.0f);
 
-    g.setColour(juce::Colour(0xff00b4d8));
-    g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
+    g.setColour(juce::Colour(0xff818cf8));
+    g.setFont(juce::FontOptions("Segoe UI Variable", 10.0f, juce::Font::bold));
     VisualParameters params = getParameters();
-    juce::String pillText = "SCENE: " + getSceneName(params.scene).toUpperCase() + " | " +
+    juce::String pillText = getSceneName(params.scene).toUpperCase() + "  \u2022  " +
                             (currentScaleMode == ScaleMode::Fit ? "FIT" : "COVER");
     g.drawText(pillText, modePillRect, juce::Justification::centred, false);
 }
@@ -1421,6 +1519,28 @@ void VisualCanvas::setScaleMode(ScaleMode mode)
 void VisualCanvas::toggleScaleMode()
 {
     setScaleMode(currentScaleMode == ScaleMode::Fit ? ScaleMode::Cover : ScaleMode::Fit);
+}
+
+void VisualCanvas::setDirectImage(const juce::Image& img, const juce::String& sourceTitle)
+{
+    if (!img.isValid())
+        return;
+
+    isLoading = false;
+    isStatusError = false;
+    imageWidth = img.getWidth();
+    imageHeight = img.getHeight();
+    currentSourceName = sourceTitle;
+    currentStatusText = "YouTube: " + sourceTitle + " (" + juce::String(imageWidth) + "x" + juce::String(imageHeight) + ")";
+
+    {
+        std::lock_guard<std::mutex> lock(imageMutex);
+        cachedSourceImage = img;
+        pendingImage = img;
+        newTexturePending.store(true, std::memory_order_release);
+    }
+
+    repaint();
 }
 
 void VisualCanvas::onImageLoaded(const ImageImportResult& result)

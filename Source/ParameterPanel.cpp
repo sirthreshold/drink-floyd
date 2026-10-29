@@ -18,12 +18,28 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     auto setupHeader = [this](juce::Label& lbl, const juce::String& text)
     {
         lbl.setText(text, juce::dontSendNotification);
-        lbl.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        lbl.setColour(juce::Label::textColourId, juce::Colour(0xff00b4d8));
+        lbl.setFont(juce::FontOptions("Segoe UI Variable", 10.0f, juce::Font::bold));
+        lbl.setColour(juce::Label::textColourId, juce::Colour(0xff8a8a9e));
         addAndMakeVisible(lbl);
     };
 
-    // 0. SCENE & LOOK (Pixel Melt & Scatter is default scene #1)
+    // 0. PRESETS & PROFILES
+    setupHeader(presetSection, "PRESETS & PROFILES");
+    setupCombo(presetGroup, "Preset", presetManager.getPresetNames(), 1);
+    presetGroup.comboBox.onChange = [this]()
+    {
+        juce::String chosenName = presetGroup.comboBox.getText();
+        loadPresetByName(chosenName);
+    };
+
+    savePresetButton.setButtonText("SAVE PRESET");
+    savePresetButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff0ea5e9));
+    savePresetButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff38bdf8));
+    savePresetButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    savePresetButton.onClick = [this]() { promptSavePreset(); };
+    addAndMakeVisible(savePresetButton);
+
+    // 1. SCENE & LOOK (Pixel Melt & Scatter is default scene #1)
     setupHeader(sceneSection, "SCENE & GENERATIVE LOOK");
     setupCombo(sceneGroup, "Active Scene", {
         "Pixel Melt & Scatter (Reference)",
@@ -51,8 +67,8 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     }, 1);
 
     randomizeButton.setButtonText("RANDOMIZE LOOK");
-    randomizeButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff7928ca));
-    randomizeButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff9d4edd));
+    randomizeButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff6366f1));
+    randomizeButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff818cf8));
     randomizeButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
     randomizeButton.onClick = [this]() { randomizeLook(); };
     addAndMakeVisible(randomizeButton);
@@ -78,9 +94,26 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     // 3. Color & Light (Hue Drift defaults to 0.0 for original natural colors)
     setupSlider(brightnessGroup, "Brightness", 0.1, 2.0, 1.00);
     setupSlider(hueDriftGroup,   "Hue Drift",   0.0, 1.0, 0.00);
-    setupCombo(paletteGroup,     "Palette",    { "Original", "Neon Ultraviolet", "Solar Flare", "Monochrome Ice", "Dark Floyd", "Custom" }, 1);
+    setupCombo(paletteGroup,     "Palette",    {
+        "Original (True Colors)",
+        "Neon Ultraviolet",
+        "Solar Flare",
+        "Monochrome Ice",
+        "Dark Floyd (Toxic)",
+        "Cyberpunk Sunset",
+        "Vaporwave Twilight",
+        "Emerald Aurora",
+        "Blood Moon",
+        "Deep Ocean Abyss",
+        "Acid Toxic Green",
+        "Hyperpop Bubblegum",
+        "Golden Hour",
+        "Infrared Thermal",
+        "Retro Synthwave",
+        "Custom Swatch"
+    }, 1);
 
-    // Custom Color Swatch button
+    // Custom Color Swatch button (cycles gradient swatch colors and activates Custom palette)
     customColorButton.setButtonText("Swatch");
     customColorButton.setColour(juce::TextButton::buttonColourId, currentCustomColour);
     customColorButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
@@ -92,14 +125,17 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
             juce::Colour(0xffff9900), // Solar Amber
             juce::Colour(0xff9900ff), // Vivid Violet
             juce::Colour(0xff00ff88), // Neon Mint
-            juce::Colour(0xffff3333)  // Laser Crimson
+            juce::Colour(0xffff3333), // Laser Crimson
+            juce::Colour(0xffffdd00), // Acid Gold
+            juce::Colour(0xff00ffea), // Neo Aqua
+            juce::Colour(0xffff0055)  // Cyber Rose
         };
         static int colorIdx = 0;
-        colorIdx = (colorIdx + 1) % 6;
+        colorIdx = (colorIdx + 1) % 9;
         currentCustomColour = paletteChoices[colorIdx];
         customColorButton.setColour(juce::TextButton::buttonColourId, currentCustomColour);
 
-        paletteGroup.comboBox.setSelectedId(6, juce::dontSendNotification);
+        paletteGroup.comboBox.setSelectedId(16, juce::dontSendNotification); // Select Custom (16)
         pushAllParametersToCanvas();
     };
     addAndMakeVisible(customColorButton);
@@ -121,22 +157,19 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
 void ParameterPanelContent::setupSlider(SliderGroup& group, const juce::String& name, double minVal, double maxVal, double defaultVal, double step)
 {
     group.label.setText(name, juce::dontSendNotification);
-    group.label.setFont(juce::FontOptions(12.0f, juce::Font::plain));
-    group.label.setColour(juce::Label::textColourId, juce::Colour(0xffc5cad3));
+    group.label.setFont(juce::FontOptions("Segoe UI Variable", 11.5f, juce::Font::plain));
+    group.label.setColour(juce::Label::textColourId, juce::Colour(0xffd4d4dc));
     addAndMakeVisible(group.label);
 
     group.slider.setSliderStyle(juce::Slider::LinearHorizontal);
     group.slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     group.slider.setRange(minVal, maxVal, step);
     group.slider.setValue(defaultVal, juce::dontSendNotification);
-    group.slider.setColour(juce::Slider::thumbColourId, juce::Colour(0xff00b4d8));
-    group.slider.setColour(juce::Slider::trackColourId, juce::Colour(0xff1f2533));
-    group.slider.setColour(juce::Slider::backgroundColourId, juce::Colour(0xff161a22));
     addAndMakeVisible(group.slider);
 
     group.valueLabel.setText(juce::String(defaultVal, (step < 1.0 ? 2 : 0)), juce::dontSendNotification);
-    group.valueLabel.setFont(juce::FontOptions(11.0f, juce::Font::plain));
-    group.valueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff7d8799));
+    group.valueLabel.setFont(juce::FontOptions("Segoe UI Variable", 10.5f, juce::Font::plain));
+    group.valueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff71717a));
     group.valueLabel.setJustificationType(juce::Justification::centredRight);
     addAndMakeVisible(group.valueLabel);
 
@@ -150,18 +183,14 @@ void ParameterPanelContent::setupSlider(SliderGroup& group, const juce::String& 
 void ParameterPanelContent::setupCombo(ComboGroup& group, const juce::String& name, const juce::StringArray& options, int defaultIndex)
 {
     group.label.setText(name, juce::dontSendNotification);
-    group.label.setFont(juce::FontOptions(12.0f, juce::Font::plain));
-    group.label.setColour(juce::Label::textColourId, juce::Colour(0xffc5cad3));
+    group.label.setFont(juce::FontOptions("Segoe UI Variable", 11.5f, juce::Font::plain));
+    group.label.setColour(juce::Label::textColourId, juce::Colour(0xffd4d4dc));
     addAndMakeVisible(group.label);
 
     for (int i = 0; i < options.size(); ++i)
         group.comboBox.addItem(options[i], i + 1);
 
     group.comboBox.setSelectedId(defaultIndex, juce::dontSendNotification);
-    group.comboBox.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff161a22));
-    group.comboBox.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff272d3b));
-    group.comboBox.setColour(juce::ComboBox::textColourId, juce::Colour(0xffdce1ea));
-    group.comboBox.setColour(juce::ComboBox::arrowColourId, juce::Colour(0xff8a93a5));
     group.comboBox.onChange = [this]() { pushAllParametersToCanvas(); };
     addAndMakeVisible(group.comboBox);
 }
@@ -194,7 +223,7 @@ void ParameterPanelContent::pushAllParametersToCanvas()
     p.hueDrift = static_cast<float>(hueDriftGroup.slider.getValue());
 
     const int palId = paletteGroup.comboBox.getSelectedId();
-    p.palette = static_cast<PalettePreset>(std::clamp(palId - 1, 0, 5));
+    p.palette = static_cast<PalettePreset>(std::clamp(palId - 1, 0, 15));
     p.customColour = currentCustomColour;
     p.vignette = static_cast<float>(vignetteGroup.slider.getValue());
 
@@ -209,6 +238,112 @@ void ParameterPanelContent::pushAllParametersToCanvas()
     p.lensStyle = static_cast<LensStyle>(std::clamp(lensId - 1, 0, 2));
 
     canvas.setParameters(p);
+}
+
+void ParameterPanelContent::applyParametersToUI(const VisualParameters& p)
+{
+    sceneGroup.comboBox.setSelectedId(static_cast<int>(p.scene) + 1, juce::dontSendNotification);
+    reactGroup.slider.setValue(p.react, juce::dontSendNotification);
+    reactGroup.valueLabel.setText(juce::String(p.react, 2), juce::dontSendNotification);
+    meltGroup.slider.setValue(p.melt, juce::dontSendNotification);
+    meltGroup.valueLabel.setText(juce::String(p.melt, 2), juce::dontSendNotification);
+    scatterGroup.slider.setValue(p.scatter, juce::dontSendNotification);
+    scatterGroup.valueLabel.setText(juce::String(p.scatter, 2), juce::dontSendNotification);
+    pixelSizeGroup.slider.setValue(p.pixelSize, juce::dontSendNotification);
+    pixelSizeGroup.valueLabel.setText(juce::String(p.pixelSize, 1), juce::dontSendNotification);
+    chaosGroup.slider.setValue(p.chaos, juce::dontSendNotification);
+    chaosGroup.valueLabel.setText(juce::String(p.chaos, 2), juce::dontSendNotification);
+    inputGainGroup.slider.setValue(p.inputGain, juce::dontSendNotification);
+    inputGainGroup.valueLabel.setText(juce::String(p.inputGain, 2), juce::dontSendNotification);
+
+    trailsGroup.slider.setValue(p.trails, juce::dontSendNotification);
+    trailsGroup.valueLabel.setText(juce::String(p.trails, 2), juce::dontSendNotification);
+    heatGroup.slider.setValue(p.heat, juce::dontSendNotification);
+    heatGroup.valueLabel.setText(juce::String(p.heat, 2), juce::dontSendNotification);
+    decayGroup.slider.setValue(p.decay, juce::dontSendNotification);
+    decayGroup.valueLabel.setText(juce::String(p.decay, 2), juce::dontSendNotification);
+
+    brightnessGroup.slider.setValue(p.brightness, juce::dontSendNotification);
+    brightnessGroup.valueLabel.setText(juce::String(p.brightness, 2), juce::dontSendNotification);
+    hueDriftGroup.slider.setValue(p.hueDrift, juce::dontSendNotification);
+    hueDriftGroup.valueLabel.setText(juce::String(p.hueDrift, 2), juce::dontSendNotification);
+
+    paletteGroup.comboBox.setSelectedId(static_cast<int>(p.palette) + 1, juce::dontSendNotification);
+    currentCustomColour = p.customColour;
+    customColorButton.setColour(juce::TextButton::buttonColourId, currentCustomColour);
+    vignetteGroup.slider.setValue(p.vignette, juce::dontSendNotification);
+    vignetteGroup.valueLabel.setText(juce::String(p.vignette, 2), juce::dontSendNotification);
+
+    symmetryGroup.slider.setValue(p.symmetry, juce::dontSendNotification);
+    symmetryGroup.valueLabel.setText(juce::String(p.symmetry, 0), juce::dontSendNotification);
+    tilesGroup.slider.setValue(p.tiles, juce::dontSendNotification);
+    tilesGroup.valueLabel.setText(juce::String(p.tiles, 0), juce::dontSendNotification);
+    twistGroup.slider.setValue(p.twist, juce::dontSendNotification);
+    twistGroup.valueLabel.setText(juce::String(p.twist, 2), juce::dontSendNotification);
+    sliceGroup.slider.setValue(p.slice, juce::dontSendNotification);
+    sliceGroup.valueLabel.setText(juce::String(p.slice, 2), juce::dontSendNotification);
+    lensGroup.slider.setValue(p.lens, juce::dontSendNotification);
+    lensGroup.valueLabel.setText(juce::String(p.lens, 2), juce::dontSendNotification);
+    lensStyleGroup.comboBox.setSelectedId(static_cast<int>(p.lensStyle) + 1, juce::dontSendNotification);
+
+    analysis.setInputGain(p.inputGain);
+    analysis.setReact(p.react);
+    canvas.setParameters(p);
+}
+
+void ParameterPanelContent::refreshPresetList(const juce::String& selectName)
+{
+    presetManager.refreshUserPresets();
+    auto names = presetManager.getPresetNames();
+    presetGroup.comboBox.clear(juce::dontSendNotification);
+    for (int i = 0; i < names.size(); ++i)
+        presetGroup.comboBox.addItem(names[i], i + 1);
+
+    if (selectName.isNotEmpty())
+    {
+        for (int i = 0; i < names.size(); ++i)
+        {
+            if (names[i].equalsIgnoreCase(selectName) || names[i].equalsIgnoreCase("[User] " + selectName))
+            {
+                presetGroup.comboBox.setSelectedId(i + 1, juce::dontSendNotification);
+                return;
+            }
+        }
+    }
+}
+
+void ParameterPanelContent::loadPresetByName(const juce::String& name)
+{
+    VisualParameters p;
+    if (presetManager.getPresetByName(name, p))
+    {
+        applyParametersToUI(p);
+    }
+}
+
+void ParameterPanelContent::promptSavePreset()
+{
+    auto* alert = new juce::AlertWindow("Save Custom Preset", "Enter a name for your custom look:", juce::AlertWindow::QuestionIcon);
+    alert->addTextEditor("presetName", "My Custom Preset", "Preset Name:");
+    alert->addButton("Save", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    alert->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+
+    alert->enterModalState(true, juce::ModalCallbackFunction::create([this, alert](int result)
+    {
+        if (result == 1)
+        {
+            juce::String name = alert->getTextEditorContents("presetName").trim();
+            if (name.isNotEmpty())
+            {
+                VisualParameters currentParams = canvas.getParameters();
+                if (presetManager.saveUserPreset(name, currentParams))
+                {
+                    refreshPresetList(name);
+                }
+            }
+        }
+        delete alert;
+    }));
 }
 
 void ParameterPanelContent::randomizeLook()
@@ -259,7 +394,7 @@ void ParameterPanelContent::randomizeLook()
 
 void ParameterPanelContent::paint(juce::Graphics& g)
 {
-    g.setColour(juce::Colour(0xff14161d));
+    g.setColour(juce::Colour(0xff15151c));
     g.fillAll();
 }
 
@@ -297,7 +432,14 @@ void ParameterPanelContent::resized()
         y += 18 + 6;
     };
 
-    // 0. SCENE & LOOK
+    // 0. PRESETS & PROFILES
+    layoutSection(presetSection);
+    presetGroup.label.setBounds(x, y, 55, rowHeight);
+    presetGroup.comboBox.setBounds(x + 58, y, panelWidth - 58 - 100, rowHeight);
+    savePresetButton.setBounds(x + panelWidth - 94, y, 94, rowHeight);
+    y += rowHeight + sectionSpacing;
+
+    // 1. SCENE & LOOK
     layoutSection(sceneSection);
     layoutCombo(sceneGroup);
     randomizeButton.setBounds(x, y, panelWidth, 28);
@@ -364,10 +506,10 @@ ParameterPanel::ParameterPanel(AudioAnalysisEngine& analysisEngine, VisualCanvas
 void ParameterPanel::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
-    g.setColour(juce::Colour(0xff14161d));
+    g.setColour(juce::Colour(0xff15151c));
     g.fillRect(bounds);
 
-    g.setColour(juce::Colour(0xff232732));
+    g.setColour(juce::Colour(0xff242432));
     g.drawVerticalLine(0, 0.0f, static_cast<float>(bounds.getHeight()));
 }
 

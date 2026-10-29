@@ -8,58 +8,82 @@ namespace drinkfloyd
 HeaderBar::HeaderBar(AudioAnalysisEngine& analysisEngine)
     : analysis(analysisEngine)
 {
+    // macOS Traffic Light Dots
+    auto setupTrafficDot = [this](juce::TextButton& btn, std::function<void()> onClick)
+    {
+        btn.setButtonText("");
+        btn.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+        btn.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
+        btn.onClick = onClick;
+        addAndMakeVisible(btn);
+    };
+
+    setupTrafficDot(closeDot, [this]()
+    {
+        if (auto* app = juce::JUCEApplication::getInstance())
+            app->systemRequestedQuit();
+    });
+
+    setupTrafficDot(minimizeDot, [this]()
+    {
+        if (auto* peer = getPeer())
+            peer->setMinimised(true);
+    });
+
+    setupTrafficDot(zoomDot, [this]()
+    {
+        if (onToggleFullscreen)
+            onToggleFullscreen();
+    });
+
     // App Title
     titleLabel.setText("DRINK FLOYD", juce::dontSendNotification);
-    titleLabel.setFont(juce::FontOptions(17.0f, juce::Font::bold));
-    titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xfff0f2f5));
+    titleLabel.setFont(juce::FontOptions("Segoe UI Variable", 13.5f, juce::Font::bold));
+    titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xfff4f4f6));
     titleLabel.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(titleLabel);
 
-    // Status Badge
-    statusBadge.setText("STANDALONE | PHASE 3", juce::dontSendNotification);
-    statusBadge.setFont(juce::FontOptions(10.5f, juce::Font::plain));
-    statusBadge.setColour(juce::Label::textColourId, juce::Colour(0xff8a93a5));
-    statusBadge.setColour(juce::Label::backgroundColourId, juce::Colour(0xff1d222c));
+    // Status Badge (Apple Indigo Pill)
+    statusBadge.setText("v2.0 PRO", juce::dontSendNotification);
+    statusBadge.setFont(juce::FontOptions("Segoe UI Variable", 9.5f, juce::Font::bold));
+    statusBadge.setColour(juce::Label::textColourId, juce::Colours::white);
+    statusBadge.setColour(juce::Label::backgroundColourId, juce::Colour(0xff6366f1));
     statusBadge.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(statusBadge);
 
-    // Audio Capture Status Badge
-    audioStatusBadge.setText("[Audio Initializing...]", juce::dontSendNotification);
-    audioStatusBadge.setFont(juce::FontOptions(10.5f, juce::Font::bold));
-    audioStatusBadge.setColour(juce::Label::textColourId, juce::Colour(0xff00e5a3));
-    audioStatusBadge.setColour(juce::Label::backgroundColourId, juce::Colour(0xff141d22));
+    // Audio Capture Status Badge (Frosted Capsule)
+    audioStatusBadge.setText("Listening...", juce::dontSendNotification);
+    audioStatusBadge.setFont(juce::FontOptions("Segoe UI Variable", 10.5f, juce::Font::bold));
+    audioStatusBadge.setColour(juce::Label::textColourId, juce::Colour(0xff10b981));
+    audioStatusBadge.setColour(juce::Label::backgroundColourId, juce::Colour(0xff1c2420));
     audioStatusBadge.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(audioStatusBadge);
 
     // Open Image Button
-    openButton.setButtonText("Open Image...");
-    openButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff1a1e28));
-    openButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff272e3d));
-    openButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffd5dbe5));
+    openButton.setButtonText("Open...");
     openButton.onClick = [this]() { if (onOpenImage) onOpenImage(); };
     addAndMakeVisible(openButton);
 
     // Paste Image Button
-    pasteButton.setButtonText("Paste (Ctrl+V)");
-    pasteButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff1a1e28));
-    pasteButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff272e3d));
-    pasteButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffd5dbe5));
+    pasteButton.setButtonText("Paste");
     pasteButton.onClick = [this]() { if (onPasteImage) onPasteImage(); };
     addAndMakeVisible(pasteButton);
 
+    // Sync YouTube Button (Apple Dark Crimson)
+    syncYouTubeButton.setButtonText("Sync YouTube");
+    syncYouTubeButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xffe11d48));
+    syncYouTubeButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xfff43f5e));
+    syncYouTubeButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    syncYouTubeButton.onClick = [this]() { if (onSyncYouTube) onSyncYouTube(); };
+    addAndMakeVisible(syncYouTubeButton);
+
     // Scale Mode Toggle Button (Fit / Cover)
-    scaleModeButton.setButtonText("Mode: Fit");
-    scaleModeButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff152230));
-    scaleModeButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff1f3248));
-    scaleModeButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xff00b4d8));
+    scaleModeButton.setButtonText("Fit");
     scaleModeButton.onClick = [this]() { if (onToggleScaleMode) onToggleScaleMode(); };
     addAndMakeVisible(scaleModeButton);
 
     // Fullscreen Button
     fullscreenButton.setButtonText("Fullscreen");
-    fullscreenButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff222a38));
-    fullscreenButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff333e52));
-    fullscreenButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffd5dbe5));
     fullscreenButton.onClick = [this]() { if (onToggleFullscreen) onToggleFullscreen(); };
     addAndMakeVisible(fullscreenButton);
 
@@ -67,8 +91,6 @@ HeaderBar::HeaderBar(AudioAnalysisEngine& analysisEngine)
     auto setupAspectBtn = [this](juce::TextButton& btn, const juce::String& text, int idx)
     {
         btn.setButtonText(text);
-        btn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff161922));
-        btn.setColour(juce::TextButton::textColourOffId, juce::Colour(0xff8a93a5));
         btn.onClick = [this, idx]()
         {
             updateAspectButtons(idx);
@@ -77,17 +99,17 @@ HeaderBar::HeaderBar(AudioAnalysisEngine& analysisEngine)
         addAndMakeVisible(btn);
     };
 
-    setupAspectBtn(resSquareButton,    "1080x1080", 0);
-    setupAspectBtn(resPortraitButton,  "1080x1920", 1);
-    setupAspectBtn(resLandscapeButton, "1920x1080", 2);
+    setupAspectBtn(resSquareButton,    "1:1",  0);
+    setupAspectBtn(resPortraitButton,  "9:16", 1);
+    setupAspectBtn(resLandscapeButton, "16:9", 2);
 
     updateAspectButtons(0); // Default to 1080x1080 (1:1)
 
     // Real-Time Rendered FPS Readout
     fpsLabel.setText("60.0 FPS", juce::dontSendNotification);
-    fpsLabel.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    fpsLabel.setColour(juce::Label::textColourId, juce::Colour(0xff3ddc84));
-    fpsLabel.setColour(juce::Label::backgroundColourId, juce::Colour(0xff151b22));
+    fpsLabel.setFont(juce::FontOptions("Segoe UI Variable", 11.5f, juce::Font::bold));
+    fpsLabel.setColour(juce::Label::textColourId, juce::Colour(0xff10b981));
+    fpsLabel.setColour(juce::Label::backgroundColourId, juce::Colour(0xff181824));
     fpsLabel.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(fpsLabel);
 
@@ -109,8 +131,8 @@ void HeaderBar::updateAspectButtons(int activeIndex)
 {
     auto setBtnActive = [](juce::TextButton& btn, bool active)
     {
-        btn.setColour(juce::TextButton::buttonColourId, active ? juce::Colour(0xff004c6d) : juce::Colour(0xff161922));
-        btn.setColour(juce::TextButton::textColourOffId, active ? juce::Colour(0xff00b4d8) : juce::Colour(0xff8a93a5));
+        btn.setColour(juce::TextButton::buttonColourId, active ? juce::Colour(0xff6366f1) : juce::Colour(0xff1d1d28));
+        btn.setColour(juce::TextButton::textColourOffId, active ? juce::Colours::white : juce::Colour(0xffa1a1b0));
     };
 
     setBtnActive(resSquareButton,    activeIndex == 0);
@@ -165,52 +187,68 @@ void HeaderBar::paint(juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
-    // Dark sleek background
-    g.setColour(juce::Colour(0xff111318));
+    // macOS Dark header background
+    g.setColour(juce::Colour(0xff16161d));
     g.fillRect(bounds);
 
     // Bottom hairline separator
-    g.setColour(juce::Colour(0xff232732));
+    g.setColour(juce::Colour(0xff262634));
     g.drawHorizontalLine(bounds.getBottom() - 1, 0.0f, static_cast<float>(bounds.getWidth()));
 
-    // Title accent mark
-    g.setColour(juce::Colour(0xff00b4d8));
-    g.fillRoundedRectangle(12.0f, static_cast<float>(bounds.getCentreY() - 7), 4.0f, 14.0f, 2.0f);
+    // Draw macOS traffic light circles
+    auto drawDot = [&](juce::TextButton& btn, juce::Colour fillCol, juce::Colour borderCol)
+    {
+        auto b = btn.getBounds().toFloat();
+        g.setColour(fillCol);
+        g.fillEllipse(b);
+        g.setColour(borderCol);
+        g.drawEllipse(b, 0.8f);
+    };
+
+    drawDot(closeDot,    juce::Colour(0xffff5f56), juce::Colour(0xffe0443e));
+    drawDot(minimizeDot, juce::Colour(0xffffbd2e), juce::Colour(0xffd89e24));
+    drawDot(zoomDot,     juce::Colour(0xff27c93f), juce::Colour(0xff1aab29));
 }
 
 void HeaderBar::resized()
 {
     auto bounds = getLocalBounds().reduced(8, 6);
 
-    // Left title and badge
-    titleLabel.setBounds(20, bounds.getY(), 115, bounds.getHeight());
-    statusBadge.setBounds(titleLabel.getRight() + 4, bounds.getY() + 3, 130, bounds.getHeight() - 6);
+    // Left: macOS Traffic light dots
+    closeDot.setBounds(14, bounds.getCentreY() - 6, 12, 12);
+    minimizeDot.setBounds(32, bounds.getCentreY() - 6, 12, 12);
+    zoomDot.setBounds(50, bounds.getCentreY() - 6, 12, 12);
 
-    // Action buttons next to badge
-    openButton.setBounds(statusBadge.getRight() + 10, bounds.getY() + 2, 90, bounds.getHeight() - 4);
-    pasteButton.setBounds(openButton.getRight() + 6, bounds.getY() + 2, 96, bounds.getHeight() - 4);
-    scaleModeButton.setBounds(pasteButton.getRight() + 6, bounds.getY() + 2, 75, bounds.getHeight() - 4);
+    // App title and pill badge
+    titleLabel.setBounds(74, bounds.getY(), 105, bounds.getHeight());
+    statusBadge.setBounds(titleLabel.getRight() + 2, bounds.getY() + 6, 56, bounds.getHeight() - 12);
+
+    // Action buttons next to title
+    openButton.setBounds(statusBadge.getRight() + 10, bounds.getY() + 2, 65, bounds.getHeight() - 4);
+    pasteButton.setBounds(openButton.getRight() + 5, bounds.getY() + 2, 60, bounds.getHeight() - 4);
+    syncYouTubeButton.setBounds(pasteButton.getRight() + 5, bounds.getY() + 2, 94, bounds.getHeight() - 4);
+    scaleModeButton.setBounds(syncYouTubeButton.getRight() + 5, bounds.getY() + 2, 70, bounds.getHeight() - 4);
 
     // Right FPS counter
-    const int fpsWidth = 80;
+    const int fpsWidth = 75;
     fpsLabel.setBounds(bounds.getRight() - fpsWidth, bounds.getY() + 2, fpsWidth, bounds.getHeight() - 4);
 
     // Audio status badge
-    const int audioWidth = 240;
+    const int audioWidth = 190;
     audioStatusBadge.setBounds(fpsLabel.getX() - audioWidth - 8, bounds.getY() + 2, audioWidth, bounds.getHeight() - 4);
 
     // Center output resolution preview buttons
-    const int resBtnW = 75;
+    const int resBtnW = 46;
     int curX = scaleModeButton.getRight() + 10;
     resSquareButton.setBounds(curX, bounds.getY() + 2, resBtnW, bounds.getHeight() - 4);
-    curX += resBtnW + 4;
+    curX += resBtnW + 3;
     resPortraitButton.setBounds(curX, bounds.getY() + 2, resBtnW, bounds.getHeight() - 4);
-    curX += resBtnW + 4;
+    curX += resBtnW + 3;
     resLandscapeButton.setBounds(curX, bounds.getY() + 2, resBtnW, bounds.getHeight() - 4);
     curX += resBtnW + 6;
 
     // Fullscreen Button
-    fullscreenButton.setBounds(curX, bounds.getY() + 2, 78, bounds.getHeight() - 4);
+    fullscreenButton.setBounds(curX, bounds.getY() + 2, 76, bounds.getHeight() - 4);
 }
 
 } // namespace drinkfloyd

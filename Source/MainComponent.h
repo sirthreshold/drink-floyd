@@ -6,6 +6,7 @@
 #include "HeaderBar.h"
 #include "VisualCanvas.h"
 #include "ParameterPanel.h"
+#include "MacDarkLookAndFeel.h"
 
 namespace drinkfloyd
 {
@@ -26,6 +27,9 @@ public:
     void exitFullscreen();
 
 private:
+    // Global macOS Dark Theme LookAndFeel
+    MacDarkLookAndFeel macDarkLookAndFeel;
+
     // Audio capture & analysis engines
     AudioAnalysisEngine audioAnalysisEngine;
     AudioCaptureEngine  audioCaptureEngine;

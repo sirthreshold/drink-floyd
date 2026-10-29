@@ -30,71 +30,60 @@ void AudioMonitorView::paint(juce::Graphics& g)
     const auto bounds = getLocalBounds();
     const int w = bounds.getWidth();
 
-    // Dark sleek container box
-    g.setColour(juce::Colour(0xff10131a));
-    g.fillRoundedRectangle(bounds.toFloat(), 6.0f);
+    // macOS Dark Card Container
+    g.setColour(juce::Colour(0xff171720));
+    g.fillRoundedRectangle(bounds.toFloat(), 8.0f);
 
-    g.setColour(juce::Colour(0xff222733));
-    g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), 6.0f, 1.0f);
+    g.setColour(juce::Colour(0xff272736));
+    g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), 8.0f, 1.0f);
 
     int y = 10;
     const int padX = 12;
     const int contentW = w - padX * 2;
 
-    // 1. Title + Device Status
-    g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-    g.setColour(juce::Colour(0xff00b4d8));
-    g.drawText("WASAPI LOOPBACK (DEFAULT OUTPUT)", padX, y, contentW - 60, 16, juce::Justification::left, true);
+    // 1. Header: Status Dot + Loopback Title + Beat Pulse
+    g.setFont(juce::FontOptions("Segoe UI Variable", 10.5f, juce::Font::bold));
+    g.setColour(juce::Colour(0xff8e8e9d));
+    g.drawText("SYSTEM AUDIO LOOPBACK", padX, y, contentW - 55, 14, juce::Justification::left, true);
 
     // Beat Pulse Indicator Pill
     const float beatAlpha = std::clamp(snapshot.bands.beat, 0.0f, 1.0f);
-    juce::Rectangle<float> beatRect(static_cast<float>(w - padX - 50), static_cast<float>(y), 50.0f, 16.0f);
-    g.setColour(juce::Colour(0xff181d26));
-    g.fillRoundedRectangle(beatRect, 3.0f);
+    juce::Rectangle<float> beatRect(static_cast<float>(w - padX - 46), static_cast<float>(y - 1), 46.0f, 16.0f);
+    g.setColour(juce::Colour(0xff1d1d28));
+    g.fillRoundedRectangle(beatRect, 8.0f);
 
-    if (beatAlpha > 0.05f)
+    if (beatAlpha > 0.04f)
     {
-        g.setColour(juce::Colour(0xffff3366).withAlpha(beatAlpha));
-        g.fillRoundedRectangle(beatRect, 3.0f);
+        g.setColour(juce::Colour(0xfff43f5e).withAlpha(beatAlpha));
+        g.fillRoundedRectangle(beatRect, 8.0f);
     }
-    g.setColour(beatAlpha > 0.3f ? juce::Colours::white : juce::Colour(0xff778193));
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    g.setColour(beatAlpha > 0.25f ? juce::Colours::white : juce::Colour(0xff6b6b7d));
+    g.setFont(juce::FontOptions("Segoe UI Variable", 9.5f, juce::Font::bold));
     g.drawText("BEAT", beatRect, juce::Justification::centred, false);
 
-    y += 20;
+    y += 18;
 
-    // Device Name
-    g.setFont(juce::FontOptions(11.0f, juce::Font::plain));
-    g.setColour(juce::Colour(0xff99a3b3));
-    juce::String devName = snapshot.deviceName;
-    if (devName.length() > 36)
-        devName = devName.substring(0, 34) + "...";
-    g.drawText(devName, padX, y, contentW, 14, juce::Justification::left, true);
-
-    y += 16;
-
-    // Status Indicator
-    juce::Colour statusColour = juce::Colour(0xff7d8799); // Grey for No audio
-    juce::String statusIcon = "[o] ";
+    // Status Dot + Active Device Name
+    juce::Colour dotColour = juce::Colour(0xff6b6b7d);
     if (snapshot.status == AudioCaptureStatus::Listening)
-    {
-        statusColour = juce::Colour(0xff00e5a3); // Bright teal/green
-        statusIcon = "[*] ";
-    }
+        dotColour = juce::Colour(0xff10b981); // Emerald
     else if (snapshot.status == AudioCaptureStatus::DeviceChanged)
-    {
-        statusColour = juce::Colour(0xffffaa33); // Amber
-        statusIcon = "[~] ";
-    }
+        dotColour = juce::Colour(0xfff59e0b); // Amber
     else if (snapshot.status == AudioCaptureStatus::Error)
-    {
-        statusColour = juce::Colour(0xffff4444); // Red
-        statusIcon = "[!] ";
-    }
+        dotColour = juce::Colour(0xfff43f5e); // Red
 
-    g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
-    g.setColour(statusColour);
-    g.drawText(statusIcon + snapshot.statusMessage, padX, y, contentW, 14, juce::Justification::left, true);
+    // Glowing Dot
+    g.setColour(dotColour.withAlpha(0.25f));
+    g.fillEllipse(static_cast<float>(padX - 1), static_cast<float>(y + 3), 10.0f, 10.0f);
+    g.setColour(dotColour);
+    g.fillEllipse(static_cast<float>(padX + 1), static_cast<float>(y + 5), 6.0f, 6.0f);
+
+    g.setFont(juce::FontOptions("Segoe UI Variable", 11.0f, juce::Font::plain));
+    g.setColour(juce::Colour(0xffa1a1b0));
+    juce::String devName = snapshot.deviceName;
+    if (devName.length() > 32)
+        devName = devName.substring(0, 30) + "...";
+    g.drawText(devName, padX + 14, y, contentW - 14, 16, juce::Justification::left, true);
 
     y += 20;
 
@@ -107,42 +96,42 @@ void AudioMonitorView::paint(juce::Graphics& g)
     };
 
     const BandInfo bands[4] = {
-        { "BASS",    snapshot.bands.bass,   juce::Colour(0xffff4d6d) }, // Coral Red
-        { "LOW-MID", snapshot.bands.lowMid, juce::Colour(0xffff9e00) }, // Orange/Gold
-        { "MID",     snapshot.bands.mid,    juce::Colour(0xff00b4d8) }, // Cyan
-        { "HIGH",    snapshot.bands.high,   juce::Colour(0xff9d4edd) }  // Violet
+        { "BASS",    snapshot.bands.bass,   juce::Colour(0xfff43f5e) }, // Apple Rose
+        { "LOW-MID", snapshot.bands.lowMid, juce::Colour(0xfff59e0b) }, // Apple Amber
+        { "MID",     snapshot.bands.mid,    juce::Colour(0xff10b981) }, // Apple Emerald
+        { "HIGH",    snapshot.bands.high,   juce::Colour(0xff0ea5e9) }  // Apple Sky
     };
 
-    constexpr int barH = 8;
+    constexpr int barH = 5;
     constexpr int labelW = 55;
-    constexpr int valW = 34;
+    constexpr int valW = 32;
     const int meterW = contentW - labelW - valW - 8;
 
     for (int i = 0; i < 4; ++i)
     {
         // Band Label
-        g.setFont(juce::FontOptions(10.5f, juce::Font::plain));
-        g.setColour(juce::Colour(0xffc2c8d2));
+        g.setFont(juce::FontOptions("Segoe UI Variable", 10.5f, juce::Font::bold));
+        g.setColour(juce::Colour(0xff8e8e9d));
         g.drawText(bands[i].name, padX, y, labelW, 14, juce::Justification::left, false);
 
-        // Meter Track Background
-        const juce::Rectangle<float> trackRect(static_cast<float>(padX + labelW), static_cast<float>(y + 3), static_cast<float>(meterW), static_cast<float>(barH));
-        g.setColour(juce::Colour(0xff1a1e28));
-        g.fillRoundedRectangle(trackRect, 3.0f);
+        // Meter Track Background Capsule
+        const juce::Rectangle<float> trackRect(static_cast<float>(padX + labelW), static_cast<float>(y + 4), static_cast<float>(meterW), static_cast<float>(barH));
+        g.setColour(juce::Colour(0xff13131a));
+        g.fillRoundedRectangle(trackRect, 2.5f);
 
-        // Active Level Bar
+        // Active Level Bar Capsule
         const float val = std::clamp(bands[i].value, 0.0f, 1.0f);
         if (val > 0.005f)
         {
-            const float filledW = std::max(2.0f, meterW * val);
+            const float filledW = std::max(3.0f, meterW * val);
             const juce::Rectangle<float> fillRect(trackRect.getX(), trackRect.getY(), filledW, static_cast<float>(barH));
             g.setColour(bands[i].barColour);
-            g.fillRoundedRectangle(fillRect, 3.0f);
+            g.fillRoundedRectangle(fillRect, 2.5f);
         }
 
         // Numeric Readout (0.00)
-        g.setFont(juce::FontOptions(10.0f, juce::Font::plain));
-        g.setColour(juce::Colour(0xff7d8799));
+        g.setFont(juce::FontOptions("Segoe UI Variable", 9.5f, juce::Font::plain));
+        g.setColour(juce::Colour(0xff71717a));
         g.drawText(juce::String(val, 2), padX + labelW + meterW + 8, y, valW, 14, juce::Justification::right, false);
 
         y += 18;
