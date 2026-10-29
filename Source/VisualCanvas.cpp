@@ -300,6 +300,116 @@ static const char* warpFragmentShader = R"(
             float rot = (u_mid * u_react * 1.6 + u_beat * 0.9) * sign(sin(floor((p.x + 0.5) * 4.0) + floor((p.y + 0.5) * 4.0)));
             p = mix(p, rotateVec(q, rot), 0.70);
         }
+        else if (u_scene == 5) // NONE (Bypass)
+        {
+            // Pure image bypass without warp
+        }
+        else if (u_scene == 6) // DROSTE (Recursive Logarithmic Spiral)
+        {
+            float rLog = log(max(0.0001, r));
+            float theta = atan(p.y, p.x);
+            float spin = u_time * (0.25 + u_bass * u_react * 0.65);
+            float angle = theta + spin + rLog * (0.75 + u_chaos * 0.5);
+            float radius = exp(mod(rLog - u_time * (0.18 + u_beat * 0.45), 1.45)) * 0.38;
+            p = vec2(cos(angle), sin(angle)) * radius;
+        }
+        else if (u_scene == 7) // INFINITE (Zoom Tunnel)
+        {
+            float zoom = u_time * (0.45 + u_bass * u_react * 1.1) + u_beat * 0.28;
+            float dist = 0.5 / max(0.02, r);
+            float angle = atan(p.y, p.x);
+            p = vec2(angle / 3.14159, fract(dist + zoom) * 2.0 - 1.0) * 0.5;
+        }
+        else if (u_scene == 8) // CORRIDOR (3D Perspective Grid Tunnel)
+        {
+            float depth = 0.65 / max(0.035, abs(p.y));
+            float forward = u_time * (1.1 + u_bass * u_react * 2.6) + u_beat * 0.5;
+            p.x = p.x * depth;
+            p.y = fract(depth + forward) - 0.5;
+        }
+        else if (u_scene == 9) // CUBE (3D Isometric Cube Facets)
+        {
+            vec2 cp = p * (1.6 + u_bass * u_react * 0.85);
+            vec2 grid = floor(cp * 3.0);
+            vec2 f = fract(cp * 3.0) - 0.5;
+            float fold = sin(grid.x * 2.1 + grid.y * 3.7 + u_time * 2.0 + u_beat * 2.4) * 0.6;
+            p = mix(p, rotateVec(f, fold * u_react) * 0.35 + (grid / 3.0) * 0.35, 0.85);
+        }
+        else if (u_scene == 10) // PLANET (Little Planet Polar Warp)
+        {
+            float theta = atan(p.y, p.x) + u_time * 0.22;
+            float dist = pow(max(0.001, r), 0.45 + u_bass * u_react * 0.35) * (1.15 + u_chaos * 0.4);
+            p = vec2(cos(theta), sin(theta)) * dist * 0.55;
+        }
+        else if (u_scene == 11) // WINDOWS (Cascading Glitch)
+        {
+            float cascade = floor(u_time * 2.8 + u_beat * 5.2);
+            vec2 winOff = vec2(mod(cascade * 0.08, 0.42), -mod(cascade * 0.08, 0.42)) * (0.5 + u_react * 0.5);
+            vec2 tiled = fract(p + winOff + vec2(0.5)) - vec2(0.5);
+            p = mix(p, tiled, 0.70 + u_chaos * 0.30);
+        }
+        else if (u_scene == 12) // MELT (Liquid Downward Drips)
+        {
+            float drip = sin(p.x * 18.0 + u_time * 1.8) * cos(p.x * 35.0) * 0.05;
+            float gravity = (0.06 + u_bass * u_react * 0.22 + u_beat * 0.16) * (1.0 + drip * 2.5);
+            p.y -= gravity * (1.0 + u_chaos * 0.6);
+            p.x += sin(p.y * 22.0 + u_time * 2.0) * 0.025 * u_react;
+        }
+        else if (u_scene == 13) // SHATTER (Fragmented Polygon Explode)
+        {
+            vec2 shardGrid = floor(p * (7.0 + u_chaos * 5.0));
+            float shardRnd = fract(sin(dot(shardGrid, vec2(12.9898, 78.233))) * 43758.5453);
+            vec2 shardDisp = (vec2(fract(shardRnd * 13.1), fract(shardRnd * 37.7)) - 0.5)
+                             * (u_bass * u_react * 0.38 + u_beat * 0.30);
+            p += shardDisp;
+        }
+        else if (u_scene == 14) // PRISM (Chromatic Dispersion Refraction)
+        {
+            float prismOffset = (u_bass * 0.045 + u_beat * 0.035 + u_mid * 0.02) * u_react * (1.0 + u_chaos);
+            p += normalize(p + vec2(0.0001)) * sin(r * 22.0 - u_time * 5.5) * prismOffset;
+        }
+        else if (u_scene == 15) // TERRAIN (3D Audio Waveform Ribbons)
+        {
+            float wave = sin(p.x * 14.0 + u_time * 3.5) * cos(p.x * 7.0 - u_time * 1.8)
+                         * (0.04 + u_bass * u_react * 0.16);
+            p.y += wave * (1.0 - clamp(abs(p.y) * 1.4, 0.0, 1.0));
+            p.x += cos(p.y * 10.0 + u_time * 2.5) * 0.025 * u_mid * u_react;
+        }
+        else if (u_scene == 16) // BREATHE (Radial Pulse)
+        {
+            float breath = sin(u_time * 2.4) * 0.06 + (u_bass * 0.24 + u_beat * 0.20) * u_react;
+            p *= (1.0 - breath);
+        }
+        else if (u_scene == 17) // MOSH (Datamosh Video Glitch)
+        {
+            vec2 block = floor((p + 0.5) * 16.0);
+            float moshRnd = fract(sin(dot(block, vec2(12.9898, 78.233)) + floor(u_time * 7.5)) * 43758.5453);
+            if (moshRnd > (0.60 - u_beat * 0.35))
+            {
+                p += (vec2(fract(moshRnd * 7.1), fract(moshRnd * 19.3)) - 0.5)
+                     * (0.08 + u_bass * u_react * 0.25);
+            }
+        }
+        else if (u_scene == 18) // SORT (Directional Luminance Sorting)
+        {
+            float sortBand = floor(p.y * 28.0);
+            float sortEnergy = sin(sortBand * 5.71 + u_time * 3.5);
+            if (sortEnergy > 0.15)
+            {
+                p.x += (sortEnergy * 0.14 * (u_bass * u_react + 0.25)) * (1.0 + u_chaos);
+            }
+        }
+        else if (u_scene == 19) // CORAL (Branching Curl)
+        {
+            float a1 = sin(p.y * 9.0 + u_time * 1.6) * (0.04 + u_bass * u_react * 0.08);
+            float a2 = cos(p.x * 11.0 - u_time * 1.3) * (0.04 + u_lowMid * u_react * 0.08);
+            p += vec2(a1, a2) * (1.0 + u_chaos * 1.2);
+            p = rotateVec(p, (u_mid * u_react * 0.75) * sin(r * 14.0));
+        }
+        else if (u_scene == 20) // SCANLINE (CRT Phosphor Curvature)
+        {
+            p *= 1.0 + 0.18 * r * r * (1.0 + u_bass * u_react * 0.6);
+        }
 
         vec2 warpUv = p + vec2(0.5);
         vec2 srcUv = (warpUv - vec2(0.5)) / u_aspectScale + vec2(0.5);
@@ -309,6 +419,16 @@ static const char* warpFragmentShader = R"(
         {
             currentCol = vec4(0.04, 0.05, 0.07, 1.0);
         }
+        else if (u_scene == 14) // PRISM Chromatic Channel Separation
+        {
+            float chromDist = (0.016 + u_bass * u_react * 0.042 + u_beat * 0.032);
+            vec2 rOff = normalize(p + vec2(0.0001)) * chromDist;
+            vec2 bOff = -rOff * 0.8;
+            float cr = texture2D(u_imageTexture, clamp(srcUv + rOff, 0.0, 1.0)).r;
+            float cg = texture2D(u_imageTexture, srcUv).g;
+            float cb = texture2D(u_imageTexture, clamp(srcUv + bOff, 0.0, 1.0)).b;
+            currentCol = vec4(cr, cg, cb, 1.0);
+        }
         else
         {
             currentCol = texture2D(u_imageTexture, srcUv);
@@ -317,6 +437,12 @@ static const char* warpFragmentShader = R"(
         vec4 prevCol = texture2D(u_prevTexture, uv);
         float trailWeight = clamp(u_trails * (1.0 - u_decay * 0.45), 0.0, 0.96);
         vec4 result = mix(currentCol, prevCol, trailWeight);
+
+        if (u_scene == 20) // SCANLINE Retro Rasterization
+        {
+            float scanline = sin((vTexCoord.y + u_time * 0.05) * 600.0) * 0.5 + 0.5;
+            result.rgb *= (0.75 + scanline * 0.35);
+        }
 
         float heatEnergy = (u_bass * 0.75 + u_beat * 0.65) * u_react * u_heat;
         if (heatEnergy > 0.004)
@@ -490,6 +616,12 @@ void VisualCanvas::newOpenGLContextCreated()
 {
     initShaders();
     initBlockMesh();
+
+    if (cachedSourceImage.isValid())
+    {
+        sourceTexture.loadImage(cachedSourceImage);
+        hasImage.store(true);
+    }
 
     // Create default procedural Floyd test image pattern
     juce::Image defaultImg(juce::Image::ARGB, 512, 512, true);
@@ -814,21 +946,35 @@ void VisualCanvas::renderOpenGL()
     const float imgH = static_cast<float>(hasImage.load() ? imageHeight : 512);
     const float imgAspect = imgW / imgH;
 
+    const bool useCover = isFullscreen || (currentScaleMode == ScaleMode::Cover);
     float sx = 1.0f;
     float sy = 1.0f;
-    if (currentScaleMode == ScaleMode::Fit)
+    if (useCover)
     {
-        if (imgAspect >= targetAspect)
+        // Cover scaling: fills entire canvas/screen, cropping overflow evenly, preserving true aspect ratio
+        if (targetAspect >= imgAspect)
+        {
+            sx = 1.0f;
             sy = targetAspect / imgAspect;
+        }
         else
+        {
             sx = imgAspect / targetAspect;
+            sy = 1.0f;
+        }
     }
-    else // Cover mode
+    else // Fit mode (windowed only): letterbox / pillarbox evenly
     {
         if (imgAspect >= targetAspect)
-            sx = imgAspect / targetAspect;
-        else
+        {
+            sx = 1.0f;
             sy = targetAspect / imgAspect;
+        }
+        else
+        {
+            sx = imgAspect / targetAspect;
+            sy = 1.0f;
+        }
     }
 
     struct QuadVertex
@@ -1223,9 +1369,10 @@ void VisualCanvas::onImageLoaded(const ImageImportResult& result)
     currentSourceName = result.sourceName;
     currentStatusText = result.statusMessage;
 
-    // Handoff image to OpenGL thread
+    // Handoff image to OpenGL thread and retain cached copy
     {
         std::lock_guard<std::mutex> lock(imageMutex);
+        cachedSourceImage = result.image;
         pendingImage = result.image;
         newTexturePending.store(true, std::memory_order_release);
     }

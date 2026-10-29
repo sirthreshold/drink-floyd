@@ -27,10 +27,26 @@ ParameterPanelContent::ParameterPanelContent(AudioAnalysisEngine& analysisEngine
     setupHeader(sceneSection, "SCENE & GENERATIVE LOOK");
     setupCombo(sceneGroup, "Active Scene", {
         "Pixel Melt & Scatter (Reference)",
-        "Smear (Directional Melt)",
+        "Smear",
         "Ripple (Beat Wave)",
         "Flow (Liquid Swirl)",
-        "Tiles (Kaleido Grid)"
+        "Tiles (Kaleido Grid)",
+        "None (Bypass)",
+        "Droste (Recursive Spiral)",
+        "Infinite (Zoom Tunnel)",
+        "Corridor (3D Grid)",
+        "Cube (3D Facets)",
+        "Planet (Polar Warp)",
+        "Windows (Cascade Glitch)",
+        "Melt (Liquid Drips)",
+        "Shatter (Polygon Explode)",
+        "Prism (Chromatic Aberration)",
+        "Terrain (3D Waves)",
+        "Breathe (Radial Pulse)",
+        "Mosh (Datamosh Glitch)",
+        "Sort (Pixel Sorting)",
+        "Coral (Branching Curl)",
+        "Scanline (CRT Retro)"
     }, 1);
 
     randomizeButton.setButtonText("RANDOMIZE LOOK");
@@ -155,7 +171,7 @@ void ParameterPanelContent::pushAllParametersToCanvas()
 
     // Scene
     const int sceneId = sceneGroup.comboBox.getSelectedId();
-    p.scene = static_cast<SceneType>(std::clamp(sceneId - 1, 0, 4));
+    p.scene = static_cast<SceneType>(std::clamp(sceneId - 1, 0, 20));
 
     // Dynamics & Scatter
     p.react = static_cast<float>(reactGroup.slider.getValue());
@@ -196,8 +212,8 @@ void ParameterPanelContent::pushAllParametersToCanvas()
 
 void ParameterPanelContent::randomizeLook()
 {
-    // Randomize scene (1 to 5)
-    sceneGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 6)), juce::sendNotification);
+    // Randomize scene (1 to 21)
+    sceneGroup.comboBox.setSelectedId(random.nextInt(juce::Range<int>(1, 22)), juce::sendNotification);
 
     const int currentSceneId = sceneGroup.comboBox.getSelectedId();
 

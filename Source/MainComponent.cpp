@@ -1,4 +1,7 @@
 #include "MainComponent.h"
+#if JUCE_WINDOWS
+#include <windows.h>
+#endif
 
 namespace drinkfloyd
 {
@@ -70,32 +73,77 @@ void MainComponent::toggleFullscreen()
     auto* topLevel = getTopLevelComponent();
     auto* dw = dynamic_cast<juce::DocumentWindow*>(topLevel);
 
+#if JUCE_WINDOWS
+    if (dw != nullptr)
+    {
+        HWND hwnd = reinterpret_cast<HWND>(dw->getWindowHandle());
+        if (hwnd != nullptr)
+        {
+            if (isFullscreen)
+            {
+                savedWindowBounds = dw->getBounds();
+                savedWindowStyle = GetWindowLongPtr(hwnd, GWL_STYLE);
+                savedWindowExStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+
+                RECT r = { 0, 0, 0, 0 };
+                GetWindowRect(hwnd, &r);
+                savedWindowRect[0] = r.left;
+                savedWindowRect[1] = r.top;
+                savedWindowRect[2] = r.right;
+                savedWindowRect[3] = r.bottom;
+
+                HMONITOR hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO mi;
+                mi.cbSize = sizeof(mi);
+                GetMonitorInfo(hMon, &mi);
+
+                // Strip native decorations (title bar, borders, sizing frame) without destroying HWND
+                SetWindowLongPtr(hwnd, GWL_STYLE, savedWindowStyle & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU));
+                SetWindowLongPtr(hwnd, GWL_EXSTYLE, savedWindowExStyle & ~(WS_EX_DLGMODALFRAME | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_WINDOWEDGE));
+
+                // Position across the full monitor resolution
+                SetWindowPos(hwnd, HWND_TOP,
+                             mi.rcMonitor.left, mi.rcMonitor.top,
+                             mi.rcMonitor.right - mi.rcMonitor.left,
+                             mi.rcMonitor.bottom - mi.rcMonitor.top,
+                             SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+            }
+            else
+            {
+                // Restore previous window styles and position
+                SetWindowLongPtr(hwnd, GWL_STYLE, savedWindowStyle);
+                SetWindowLongPtr(hwnd, GWL_EXSTYLE, savedWindowExStyle);
+                SetWindowPos(hwnd, nullptr,
+                             savedWindowRect[0], savedWindowRect[1],
+                             savedWindowRect[2] - savedWindowRect[0],
+                             savedWindowRect[3] - savedWindowRect[1],
+                             SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+
+                if (!savedWindowBounds.isEmpty())
+                    dw->setBounds(savedWindowBounds);
+            }
+        }
+    }
+#else
+    if (dw != nullptr)
+    {
+        dw->setFullScreen(isFullscreen);
+    }
+#endif
+
     if (isFullscreen)
     {
-        if (dw != nullptr)
-        {
-            savedWindowBounds = dw->getBounds();
-            dw->setTitleBarHeight(0);
-            juce::Desktop::getInstance().setKioskModeComponent(dw, false);
-        }
         headerBar.setVisible(false);
         parameterPanel.setVisible(false);
         visualCanvas.setFullscreen(true);
     }
     else
     {
-        if (dw != nullptr)
-        {
-            juce::Desktop::getInstance().setKioskModeComponent(nullptr);
-            dw->setUsingNativeTitleBar(true);
-            dw->setTitleBarHeight(dw->getTitleBarHeight());
-            if (!savedWindowBounds.isEmpty())
-                dw->setBounds(savedWindowBounds);
-        }
         headerBar.setVisible(true);
         parameterPanel.setVisible(true);
         visualCanvas.setFullscreen(false);
     }
+
     resized();
 }
 

@@ -259,9 +259,14 @@ bool AudioCaptureEngine::initializeDevice()
             isFloat = true;
     }
 
-    // 4. Initialize WASAPI client in loopback mode (AUDCLNT_STREAMFLAGS_LOOPBACK)
-    // 200ms buffer size
-    constexpr REFERENCE_TIME hnsBufferDuration = 10000000 / 5;
+    // 4. Initialize WASAPI client in low-latency loopback mode (AUDCLNT_STREAMFLAGS_LOOPBACK)
+    REFERENCE_TIME defaultDevicePeriod = 0;
+    REFERENCE_TIME minDevicePeriod = 0;
+    hr = pAudioClient->GetDevicePeriod(&defaultDevicePeriod, &minDevicePeriod);
+
+    // Use hardware device period (typically 10ms = 100,000 hns) or fallback to 20ms (200,000 hns)
+    // Slashes WASAPI capture buffer latency from 200ms down to 10ms!
+    const REFERENCE_TIME hnsBufferDuration = (defaultDevicePeriod > 0) ? defaultDevicePeriod : 200000;
     hr = pAudioClient->Initialize(
         AUDCLNT_SHAREMODE_SHARED,
         AUDCLNT_STREAMFLAGS_LOOPBACK,
@@ -368,7 +373,7 @@ void AudioCaptureEngine::captureLoop()
                 lastPacketTime = now;
             }
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
 

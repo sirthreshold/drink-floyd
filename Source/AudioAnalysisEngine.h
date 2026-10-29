@@ -14,7 +14,7 @@ class AudioAnalysisEngine
 {
 public:
     static constexpr int FFT_SIZE = 2048;
-    static constexpr int HOP_SIZE = 512;
+    static constexpr int HOP_SIZE = 256; // 5.3ms at 48kHz for instantaneous transient response
 
     AudioAnalysisEngine();
     ~AudioAnalysisEngine() = default;
@@ -69,7 +69,7 @@ private:
     // Parameters (atomic)
     std::atomic<float> inputGain { 1.0f };
     std::atomic<float> reactAmount { 1.0f };
-    std::atomic<float> attackMs { 12.0f };
+    std::atomic<float> attackMs { 6.0f };
     std::atomic<float> releaseMs { 160.0f };
 
     // Status & Snapshot state

@@ -117,6 +117,7 @@ private:
     // Thread-safe image handoff to OpenGL render thread
     std::mutex imageMutex;
     juce::Image pendingImage;
+    juce::Image cachedSourceImage;
     std::atomic<bool> newTexturePending { false };
     std::atomic<bool> hasImage { false };
 

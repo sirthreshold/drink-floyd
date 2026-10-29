@@ -238,8 +238,8 @@ void AudioAnalysisEngine::processHop(double sampleRate)
     envHigh   = updateEnvelope(targetHigh, envHigh);
     envRawRms = updateEnvelope(targetRms, envRawRms);
 
-    // If long period of silence (> 25 hops, ~250ms), decay smoothly to near-zero
-    if (silentHopsCount > 25)
+    // If long period of silence (> 50 hops, ~250ms), decay smoothly to near-zero
+    if (silentHopsCount > 50)
     {
         envBass   *= 0.90f;
         envLowMid *= 0.90f;
@@ -248,20 +248,31 @@ void AudioAnalysisEngine::processHop(double sampleRate)
         envRawRms *= 0.90f;
     }
 
-    // Beat / Onset Energy Detection
-    // Track spectral flux on the bass/kick region
+    // Instantaneous Transient & Beat Onset Detection
+    // 1. Time-domain jump on the current hop (0-5ms zero-latency onset)
+    float recentHopSq = 0.0f;
+    for (int i = 0; i < HOP_SIZE; ++i)
+    {
+        int idx = (writeIndex - HOP_SIZE + i + bufferSize) % bufferSize;
+        float s = ringBuffer[idx];
+        recentHopSq += s * s;
+    }
+    const float instantHopRms = std::sqrt(recentHopSq / static_cast<float>(HOP_SIZE));
+    const float instantFlux = std::max(0.0f, instantHopRms * gain * 3.5f - envRawRms);
+
+    // 2. Frequency-domain spectral flux on bass band
     const float bassFlux = std::max(0.0f, targetBass - prevBassEnergy);
     prevBassEnergy = targetBass;
-    avgBassFlux = 0.93f * avgBassFlux + 0.07f * bassFlux;
+    avgBassFlux = 0.91f * avgBassFlux + 0.09f * bassFlux;
 
-    const float beatThreshold = avgBassFlux * 1.6f + 0.035f;
-    if (bassFlux > beatThreshold && targetBass > 0.12f)
+    const float beatThreshold = avgBassFlux * 1.5f + 0.030f;
+    if ((bassFlux > beatThreshold && targetBass > 0.10f) || (instantFlux > 0.09f && targetBass > 0.12f))
     {
         currentBeat = 1.0f;
     }
     else
     {
-        currentBeat *= 0.88f; // exponential beat decay
+        currentBeat *= 0.86f; // rapid snappy beat decay
     }
 
     // Multiply by react slider sensitivity
@@ -284,7 +295,7 @@ void AudioAnalysisEngine::processHop(double sampleRate)
         if (latestSnapshot.status != AudioCaptureStatus::Error &&
             latestSnapshot.status != AudioCaptureStatus::DeviceChanged)
         {
-            if (silentHopsCount > 30)
+            if (silentHopsCount > 60)
             {
                 latestSnapshot.status = AudioCaptureStatus::NoAudio;
                 latestSnapshot.statusMessage = "No audio detected";

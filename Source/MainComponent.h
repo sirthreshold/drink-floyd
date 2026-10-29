@@ -37,6 +37,11 @@ private:
 
     bool isFullscreen = false;
     juce::Rectangle<int> savedWindowBounds;
+#if JUCE_WINDOWS
+    int64_t savedWindowStyle = 0;
+    int64_t savedWindowExStyle = 0;
+    int savedWindowRect[4] = { 0, 0, 0, 0 }; // left, top, right, bottom
+#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
